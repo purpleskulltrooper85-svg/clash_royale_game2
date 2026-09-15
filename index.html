@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a1a33">
+<title>Trash Clash Royale</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path fill='%23FFD45A' d='M4 24h24l-2-12-6 5-6-9-6 9-6-5z'/></svg>">
+</head>
+<body>
+<div id="app">
+
+  <!-- LOADING -->
+  <section class="screen" id="screen-loading">
+    <div class="load-inner">
+      <img class="load-logo" src="assets/img/ScreenLogo.png" alt="">
+      <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
+      <div class="load-step" id="loadStep">Loading cards…</div>
+    </div>
+  </section>
+
+  <!-- TITLE -->
+  <section class="screen hidden" id="screen-title">
+    <img class="title-logo pop-in" src="assets/img/ScreenLogo.png" alt="Trash Clash Royale">
+    <img class="title-hint blink" src="assets/img/ScreenText.png" alt="click on the screen to continue">
+  </section>
+
+  <!-- MENU -->
+  <section class="screen hidden" id="screen-menu">
+    <div class="menu-inner">
+      <img class="menu-logo pop-in" src="assets/img/ScreenLogo.png" alt="">
+      <button class="img-btn big" id="btnBattle"><img src="assets/img/ButtonStart.png" alt="START"></button>
+      <div class="menu-row">
+        <button class="img-btn small" id="btnDeck">DECK</button>
+        <button class="img-btn small" id="btnHow">HOW TO PLAY</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DECK BUILDER -->
+  <section class="screen hidden" id="screen-deck">
+    <div class="deck-inner">
+      <img class="deck-header" src="assets/img/MenuText.png" alt="Choose 8 cards for your deck">
+      <div class="deck-count" id="deckCount">8 / 8</div>
+      <div class="deck-slots" id="deckSlots"></div>
+      <div class="deck-grid" id="deckGrid"></div>
+      <div class="menu-row">
+        <button class="img-btn small" id="btnDeckBack">BACK</button>
+        <button class="img-btn small" id="btnDeckReset">RESET</button>
+        <button class="img-btn small" id="btnDeckSave">SAVE</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIFFICULTY -->
+  <section class="screen hidden" id="screen-difficulty">
+    <div class="diff-inner">
+      <h2 class="diff-title">SELECT DIFFICULTY</h2>
+      <button class="img-btn diff" id="btnEasy"><img src="assets/img/ButtonEasy.png" alt="EASY"></button>
+      <button class="img-btn diff" id="btnMedium"><img src="assets/img/ButtonMedium.png" alt="MEDIUM"></button>
+      <button class="img-btn diff" id="btnHard"><img src="assets/img/ButtonHard.png" alt="HARD"></button>
+      <button class="img-btn small" id="btnDiffBack">BACK</button>
+    </div>
+  </section>
+
+  <!-- BATTLE -->
+  <section class="screen hidden" id="screen-battle">
+    <div class="battle-wrap">
+      <div class="battle-top">
+        <div class="crowns-box"><img id="enemyCrowns" src="assets/img/Score0.png" alt="enemy crowns"></div>
+        <div class="timer-box"><div id="timerLabel">3:00</div><div id="phaseLabel"></div></div>
+        <div class="crowns-box"><img id="playerCrowns" src="assets/img/Score0.png" alt="your crowns"></div>
+        <button class="quit-btn fs-btn" id="btnFs" title="Fullscreen">⛶</button>
+        <button class="quit-btn" id="btnQuit" title="Quit">✕</button>
+      </div>
+      <div class="battle-canvas-wrap" id="canvasWrap">
+        <canvas id="gameCanvas" width="400" height="700"></canvas>
+      </div>
+      <div class="battle-bottom">
+        <div class="hand-main">
+          <div class="next-slot">
+            <img class="next-label" src="assets/img/CardNext.png" alt="next">
+            <div class="next-card" id="nextCard"></div>
+          </div>
+          <div class="hand" id="handRow"></div>
+        </div>
+        <div class="elixir-row">
+          <img class="elixir-drop" src="assets/img/ElixirBar.png" alt="">
+          <div class="elixir-bar"><div class="elixir-fill" id="elixirFill"></div><div class="elixir-num" id="elixirNum">5</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section class="screen hidden" id="screen-result">
+    <div class="result-inner">
+      <img class="result-img pop-in" id="resultImg" src="assets/img/EndVictory.png" alt="">
+      <div class="result-crowns" id="resultCrowns"></div>
+      <div class="menu-row">
+        <button class="img-btn small" id="btnAgain">PLAY AGAIN</button>
+        <button class="img-btn small" id="btnMenu">MENU</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW TO PLAY -->
+  <div id="howModal" class="modal hidden">
+    <div class="modal-card">
+      <h3>How to Play</h3>
+      <ul>
+        <li>Drag cards from your hand onto the battlefield to deploy troops.</li>
+        <li>You can only deploy on your side (bottom) — or in enemy lane territory after you destroy a Princess Tower.</li>
+        <li>Spells (Fireball, Poison) can be dropped anywhere.</li>
+        <li>Elixir refills over time. At 1:00 left, elixir flow <b>doubles</b>!</li>
+        <li>Destroy more towers than the enemy before time runs out. King Tower = instant win.</li>
+      </ul>
+      <button class="img-btn small" id="btnHowClose">GOT IT</button>
+    </div>
+  </div>
+
+  <!-- PAUSE -->
+  <div id="pauseModal" class="modal hidden">
+    <div class="modal-card">
+      <h3>Paused</h3>
+      <div class="menu-row">
+        <button class="img-btn small" id="btnResume">RESUME</button>
+        <button class="img-btn small" id="btnQuitConfirm">QUIT</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastRoot"></div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>

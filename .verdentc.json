@@ -1,0 +1,10 @@
+{
+  "deploy": {
+    "type": "static",
+    "rootDir": ".",
+    "installCmd": "echo no-install-needed",
+    "buildCmd": "echo no-build-needed",
+    "outputDir": ".",
+    "entryFile": "index.html"
+  }
+}
