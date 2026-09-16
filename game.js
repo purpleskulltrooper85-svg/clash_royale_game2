@@ -47,7 +47,40 @@ const SFX = (() => {
       const a = SFX.musicAudio || (SFX.musicAudio = new Audio('assets/sound/menu.mp3'));
       a.loop = true;
       a.volume = 0.5;
+      if (!a.paused) return;
       a.play().catch(() => { SFX.musicPending = true; });
+    },
+    stopMusic(){
+      if (SFX.musicAudio){ SFX.musicAudio.pause(); SFX.musicPending = false; }
+    },
+    battle(){
+      SFX.stopMusic();
+      if (SFX.battle2Audio) SFX.battle2Audio.pause();
+      SFX.battle2Playing = false;
+      const a = SFX.battle1Audio || (SFX.battle1Audio = new Audio('assets/sound/battle1.mp3'));
+      a.loop = false;
+      a.volume = 0.5;
+      a.currentTime = 0;
+      a.onended = () => {
+        if (SFX.battle1Plays === undefined || SFX.battle1Plays < 2){
+          SFX.battle1Plays = (SFX.battle1Plays || 0) + 1;
+          if (SFX.battle1Plays < 2){ a.currentTime = 0; a.play().catch(()=>{}); return; }
+        }
+        // played 2x -> switch to the secondary loop forever
+        const b = SFX.battle2Audio || (SFX.battle2Audio = new Audio('assets/sound/battle2.mp3'));
+        b.loop = true;
+        b.volume = 0.5;
+        SFX.battle2Playing = true;
+        b.play().catch(()=>{});
+      };
+      SFX.battle1Plays = 0;
+      a.play().catch(()=>{});
+    },
+    stopBattle(){
+      if (SFX.battle1Audio) SFX.battle1Audio.pause();
+      if (SFX.battle2Audio) SFX.battle2Audio.pause();
+      SFX.battle2Playing = false;
+      SFX.battle1Plays = 0;
     },
     retryMusic(){
       if (!SFX.musicPending) return;
@@ -331,6 +364,7 @@ function makeTower(side, kind, x, y, lane){
 }
 
 function startBattle(){
+  SFX.battle();
   const deck = G.deck.length === 8 ? G.deck : DEFAULT_DECK;
   battle = {
     time: MATCH_TIME, overtime: false, over: false, resultShown: false,
@@ -860,6 +894,7 @@ function showResult(){
   ui.resultImg.src = IMG[r === 'victory' ? 'endVictory' : r === 'defeat' ? 'endDefeat' : 'endDraw'].src;
   ui.resultCrowns.textContent = `Crowns  ${battle.player.crowns} — ${battle.enemy.crowns}`;
   showScreen('screen-result');
+  SFX.stopBattle();
   if (r === 'victory') SFX.win(); else SFX.lose();
 }
 
@@ -1245,10 +1280,10 @@ function wireUI(){
   $('btnResume').addEventListener('click', () => ui.pauseModal.classList.add('hidden'));
   $('btnQuitConfirm').addEventListener('click', () => {
     ui.pauseModal.classList.add('hidden');
-    battle = null; showScreen('screen-menu');
+    battle = null; showScreen('screen-menu'); SFX.music();
   });
   $('btnAgain').addEventListener('click', () => startBattle());
-  $('btnMenu').addEventListener('click', () => { battle = null; showScreen('screen-menu'); });
+  $('btnMenu').addEventListener('click', () => { battle = null; showScreen('screen-menu'); SFX.music(); });
 }
 
 /* ---------------- boot ---------------- */
