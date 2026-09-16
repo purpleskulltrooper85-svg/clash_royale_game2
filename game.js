@@ -279,12 +279,12 @@ function startBattle(){
   initHand(battle.player, deck);
   initHand(battle.enemy, deck);
   const t = battle.towers;
-  t.push(makeTower('enemy','king',200,105));
-  t.push(makeTower('enemy','princess',95,175,'L'));
-  t.push(makeTower('enemy','princess',305,175,'R'));
-  t.push(makeTower('player','king',200,495));
-  t.push(makeTower('player','princess',95,425,'L'));
-  t.push(makeTower('player','princess',305,425,'R'));
+  t.push(makeTower('enemy','king',200,83));
+  t.push(makeTower('enemy','princess',95,131,'L'));
+  t.push(makeTower('enemy','princess',305,131,'R'));
+  t.push(makeTower('player','king',200,384));
+  t.push(makeTower('player','princess',95,345,'L'));
+  t.push(makeTower('player','princess',305,345,'R'));
   battle.ai = makeAI(G.difficulty);
   showScreen('screen-battle');
   renderHand();
