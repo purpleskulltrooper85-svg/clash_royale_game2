@@ -23,7 +23,7 @@ const CARDS = {
   skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:35,   dmg:35,  hitSpeed:1.0, range:14, speed:55, radius:6,  sprite:'Skeleton',    targets:'ground' },
   giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:2100, dmg:130, hitSpeed:1.5, range:20, speed:22, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
   minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:640, dmg:330, hitSpeed:1.7, range:16, speed:50, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
-  babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:820,  dmg:110, hitSpeed:1.6, range:88, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
+  babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:740,  dmg:95,  hitSpeed:1.6, range:88, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
   speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:70,   dmg:28,  hitSpeed:1.1, range:100, speed:63, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
   golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:3200, dmg:140, hitSpeed:1.7, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:650, dmg:70, hitSpeed:1.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
   cannon:      { key:'cannon',      label:'Cannon',       cost:3, count:1, hp:420,  dmg:85,  hitSpeed:0.9, range:122, speed:0, radius:11, building:true, sprite:'Cannon', targets:'ground', lifetime:30, projectile:'canonball' },
@@ -403,6 +403,7 @@ function spawnUnit(sideKey, card, x, y, isSpawnChild){
   offsets.forEach(o => {
     const u = {
       id: ++b.idc, side: sideKey,
+      cardKey: (!isSpawnChild && card) ? card.key : null,
       sprite: isSpawnChild ? stat.sprite : card.sprite,
       hp: isSpawnChild ? stat.hp : card.hp, maxHp: isSpawnChild ? stat.hp : card.hp,
       dmg: isSpawnChild ? stat.dmg : card.dmg,
@@ -694,15 +695,27 @@ function areaDamage(fromSide, x, y, radius, dmg, towerFactor){
 /* ---------------- AI ---------------- */
 function makeAI(diff){
   const cfg = {
-    easy:   { interval:[2.4,3.6], skipChance:0.45, defendChance:0.55, spellIQ:0, pushElixir:8, defendElixir:0 },
-    medium: { interval:[1.6,2.6], skipChance:0.2,  defendChance:0.9,  spellIQ:1, pushElixir:7, defendElixir:0 },
+    easy:   { interval:[2.4,3.6], skipChance:0.45, defendChance:0.8,  spellIQ:0, pushElixir:8, defendElixir:0 },
+    medium: { interval:[1.6,2.6], skipChance:0.2,  defendChance:1.0,  spellIQ:1, pushElixir:7, defendElixir:0 },
     hard:   { interval:[0.9,1.7], skipChance:0.05, defendChance:1.0,  spellIQ:2, pushElixir:6, defendElixir:0 },
   }[diff];
-  return { cfg, timer: 2.5 };
+  return { cfg, timer: 2.5, lastCard: null, dupeT: 0 };
+}
+
+function enemyFieldHas(cardKey){
+  return battle.units.some(u => u.side==='enemy' && !u.dead && u.cardKey === cardKey);
+}
+function aiSpend(cardKey, x, y){
+  if (!enemyDeploy(cardKey, x, y)) return false;
+  const ai = battle.ai;
+  ai.lastCard = cardKey;
+  ai.dupeT = 4;   // brief repeat cooldown on top of the "one copy alive" rule
+  return true;
 }
 
 function aiThink(dt){
   const ai = battle.ai, b = battle;
+  if (ai.dupeT > 0) ai.dupeT -= dt;
   ai.timer -= dt;
   if (ai.timer > 0) return;
   const c = ai.cfg;
@@ -710,7 +723,10 @@ function aiThink(dt){
   if (Math.random() < c.skipChance) return;
 
   const e = b.enemy;
-  const affordable = e.hand.map((k,i)=>({k,i,c:CARDS[k]})).filter(o => o.c.cost <= e.elixir);
+  let affordable = e.hand.map((k,i)=>({k,i,c:CARDS[k]})).filter(o => o.c.cost <= e.elixir);
+  // one copy of each troop/building at a time + no instant re-play of the last card
+  affordable = affordable.filter(o =>
+    !enemyFieldHas(o.k) && !(ai.dupeT > 0 && o.k === ai.lastCard));
   if (!affordable.length) return;
 
   // threats: player units on enemy side or crossing
@@ -727,10 +743,11 @@ function aiThink(dt){
         const value = g.units.reduce((s,u)=>s+ (u.hp + u.dmg*8), 0);
         if (g.units.length >= 3 || (c.spellIQ >= 2 && value > 900)) { target = g; break; }
       }
-      if (target){ enemyDeploy(sp.k, target.x, target.y); return; }
+      if (target){ aiSpend(sp.k, target.x, target.y); return; }
     }
   }
 
+  // defense first: react to any player push
   if (threats.length && Math.random() < c.defendChance){
     const th = threats[0];
     const many = threats.length >= 3;
@@ -739,31 +756,33 @@ function aiThink(dt){
     let pick = null;
     const troopOpts = affordable.filter(o => !o.c.spell && !o.c.building);
     if (air) pick = troopOpts.find(o => o.c.targets === 'any') || troopOpts.find(o=>o.c.count>=2);
-    else if (many) pick = troopOpts.find(o => o.c.splash) || troopOpts.find(o => o.c.count >= 3) || troopOpts.find(o => o.c.spell === undefined && o.c.cost <= 3);
+    else if (many) pick = troopOpts.find(o => o.c.splash) || troopOpts.find(o => o.c.count >= 3) || troopOpts.find(o => o.c.cost <= 3);
     else if (bigHp) pick = troopOpts.find(o => o.k==='minipekka') || troopOpts.find(o => o.c.dmg >= 80);
     if (!pick) pick = troopOpts[(Math.random()*troopOpts.length)|0];
     if (pick){
-      const px = th.x + (Math.random()*30-15);
-      const py = Math.max(150, Math.min(230, th.y - 30)) ;
-      if (deployValid(pick.k, px, py, 'enemy')){ enemyDeploy(pick.k, px, py); return; }
-      if (deployValid(pick.k, th.x, 200, 'enemy')){ enemyDeploy(pick.k, th.x, 200); return; }
+      // place defensively: behind the threatened tower, between it and the threat
+      const towers = b.towers.filter(t => t.side==='enemy' && !t.dead);
+      towers.sort((a,b2)=>dist(a,th)-dist(b2,th));
+      const tw = towers[0];
+      const px = tw ? tw.x + Math.sign(th.x - tw.x || 1)*24 : th.x;
+      const py = tw ? Math.max(148, Math.min(240, tw.y + 48)) : Math.max(150, Math.min(230, th.y - 30));
+      if (deployValid(pick.k, px, py, 'enemy')){ aiSpend(pick.k, px, py); return; }
+      if (deployValid(pick.k, th.x, 200, 'enemy')){ aiSpend(pick.k, th.x, 200); return; }
     }
-    return;
+    return; // defending — save remaining elixir, no simultaneous push
   }
 
-  // push logic
-  if (e.elixir >= c.pushElixir || affordable.some(o=>o.k==='golem'||o.k==='giant') && e.elixir >= CARDS.giant.cost + 2){
+  // player has nothing down (or defense roll skipped): attack
+  const wantsPush = e.elixir >= c.pushElixir ||
+    (affordable.some(o=>o.k==='golem'||o.k==='giant') && e.elixir >= CARDS.giant.cost + 2);
+  if (wantsPush){
     const tank = affordable.find(o => o.k==='golem') || affordable.find(o => o.k==='giant');
     const lane = Math.random() < 0.5 ? BRIDGE_L : BRIDGE_R;
-    if (tank){ enemyDeploy(tank.k, lane + (Math.random()*24-12), 190 + Math.random()*30); return; }
+    if (tank){ aiSpend(tank.k, lane + (Math.random()*24-12), 190 + Math.random()*30); return; }
     const troop = affordable.filter(o=>!o.c.spell)[0];
-    if (troop){ enemyDeploy(troop.k, lane + (Math.random()*40-20), 205); return; }
+    if (troop){ aiSpend(troop.k, lane + (Math.random()*40-20), 205); return; }
   }
-  // light support / cycle cheap card
-  if (e.elixir >= 8){
-    const cheap = affordable.sort((a,b2)=>a.c.cost-b.c.cost)[0];
-    if (cheap && !cheap.c.spell){ enemyDeploy(cheap.k, (Math.random()<0.5?BRIDGE_L:BRIDGE_R)+(Math.random()*40-20), 210); }
-  }
+  // otherwise bank elixir like a real player — no free dumps
 }
 
 function clusterPlayerUnits(radius){
@@ -834,7 +853,24 @@ function updateBattle(dt){
       if (u.lifetime <= 0){ u.hp = 0; killUnit(u); continue; }
     }
     u.retargetT -= dt;
-    if (u.retargetT <= 0){ acquireTarget(u); u.retargetT = 0.4 + Math.random()*0.2; }
+    if (u.retargetT <= 0){
+      u.retargetT = 0.4 + Math.random()*0.2;
+      const tgt = u.target;
+      const valid = tgt && !tgt.dead && (tgt.hp === undefined || tgt.hp > 0);
+      if (!valid){ acquireTarget(u); }
+      else {
+        const reach = u.range + u.radius + (tgt.radius || 8);
+        const attacking = dist(u, tgt) <= reach;                        // in range — stay locked
+        const committed = u.buildingsOnly || !!(tgt.kind || tgt.building); // walking to a building
+        if (!attacking && !committed){
+          acquireTarget(u);                                             // free-walking: aggro nearby troops
+        } else if (!attacking && committed && !u.buildingsOnly){
+          // building-bound troops only get distracted by enemies right on top of them
+          const near = enemiesOf(u.side).find(f => !f.building && (!f.flying || u.targets === 'any') && dist(u, f) - f.radius < 40);
+          if (near) u.target = near;
+        }
+      }
+    }
     moveUpdate(u, dt);
     attackUpdate(u, dt);
     u.animT += dt;
