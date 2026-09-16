@@ -18,17 +18,17 @@ const IMGDIR = 'assets/img/';
 
 /* ---------------- card definitions ---------------- */
 const CARDS = {
-  knight:      { key:'knight',      label:'Knight',       cost:3, count:1, hp:660,  dmg:85,  hitSpeed:1.1, range:18, speed:38, radius:9,  sprite:'Knight',      targets:'ground' },
-  archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:130,  dmg:45,  hitSpeed:1.0, range:95, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
-  skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:35,   dmg:35,  hitSpeed:1.0, range:14, speed:55, radius:6,  sprite:'Skeleton',    targets:'ground' },
-  giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:2100, dmg:130, hitSpeed:1.5, range:20, speed:22, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
-  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:640, dmg:330, hitSpeed:1.7, range:16, speed:50, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
-  babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:740,  dmg:95,  hitSpeed:1.6, range:88, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
-  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:70,   dmg:28,  hitSpeed:1.1, range:100, speed:63, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
-  golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:3200, dmg:140, hitSpeed:1.7, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:650, dmg:70, hitSpeed:1.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
-  cannon:      { key:'cannon',      label:'Cannon',       cost:3, count:1, hp:420,  dmg:85,  hitSpeed:0.9, range:122, speed:0, radius:11, building:true, sprite:'Cannon', targets:'ground', lifetime:30, projectile:'canonball' },
-  fireball:    { key:'fireball',    label:'Fireball',     cost:4, spell:true, dmg:340, radius:42, towerFactor:0.4 },
-  poison:      { key:'poison',      label:'Poison',       cost:4, spell:true, dps:55, duration:8, radius:45, towerFactor:0.4 },
+  knight:      { key:'knight',      label:'Knight',       cost:3, count:1, hp:1766, dmg:202,  hitSpeed:1.2, range:18, speed:38, radius:9,  sprite:'Knight',      targets:'ground' },
+  archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:111, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
+  skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:81,   dmg:81,   hitSpeed:1.1, range:14, speed:55, radius:6,  sprite:'Skeleton',    targets:'ground' },
+  giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:4090, dmg:253,  hitSpeed:1.5, range:20, speed:22, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
+  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1390, dmg:755, hitSpeed:1.6, range:16, speed:50, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
+  babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:1152, dmg:161,  hitSpeed:1.5, range:88, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
+  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:100, speed:63, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
+  golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:5120, dmg:312,  hitSpeed:2.5, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:1039, dmg:84, hitSpeed:2.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
+  cannon:      { key:'cannon',      label:'Cannon',       cost:3, count:1, hp:824,  dmg:212,  hitSpeed:0.9, range:122, speed:0, radius:11, building:true, sprite:'Cannon', targets:'ground', lifetime:30, projectile:'canonball' },
+  fireball:    { key:'fireball',    label:'Fireball',     cost:4, spell:true, dmg:688, radius:42, towerFactor:0.4 },
+  poison:      { key:'poison',      label:'Poison',       cost:4, spell:true, dps:92, duration:8, radius:45, towerFactor:0.4 },
 };
 const ALL_CARD_KEYS = ['knight','archers','skeletons','giant','minipekka','babydragon','speargoblins','golem','cannon','fireball','poison'];
 const DEFAULT_DECK = ['knight','archers','skeletons','giant','minipekka','babydragon','speargoblins','fireball'];
@@ -352,9 +352,9 @@ function cycleCard(side, idx){
 function makeTower(side, kind, x, y, lane){
   return {
     kind, side, lane, x, y,
-    hp: kind==='king' ? 2600 : 1500,
-    maxHp: kind==='king' ? 2600 : 1500,
-    dmg: kind==='king' ? 60 : 55,
+    hp: kind==='king' ? 5593 : 3052,
+    maxHp: kind==='king' ? 5593 : 3052,
+    dmg: kind==='king' ? 335 : 109,
     hitSpeed: kind==='king' ? 1.0 : 0.8,
     range: kind==='king' ? 112 : 100,
     radius: kind==='king' ? 21 : 17,
@@ -850,7 +850,8 @@ function updateBattle(dt){
     if (u.spawnT > 0){ u.spawnT -= dt; continue; }
     if (u.building && u.lifetime > 0){
       u.lifetime -= dt;
-      if (u.lifetime <= 0){ u.hp = 0; killUnit(u); continue; }
+      u.hp -= (u.maxHp / 30) * dt;   // decays to zero over its lifetime
+      if (u.lifetime <= 0 || u.hp <= 0){ u.hp = 0; killUnit(u); continue; }
     }
     u.retargetT -= dt;
     if (u.retargetT <= 0){
