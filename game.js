@@ -53,6 +53,12 @@ const SFX = (() => {
     win(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,.22,'triangle',.09),i*140)); },
     lose(){ [392,330,262,196].forEach((f,i)=>setTimeout(()=>tone(f,.25,'triangle',.08),i*160)); },
     beep(){ tone(880,.08,'square',.05); },
+    click(){
+      const a = SFX.clickAudio || (SFX.clickAudio = new Audio('assets/sound/click.mp3'));
+      const inst = a.cloneNode();
+      inst.volume = 0.55;
+      inst.play().catch(()=>{});
+    },
     startup(){
       const a = SFX.startupAudio || (SFX.startupAudio = new Audio('assets/sound/startup.mp3'));
       a.volume = 0.8;
@@ -1258,16 +1264,20 @@ function runIntro(onDone){
   vid.classList.remove('gone');
   vid.currentTime = 0;
   vid.play().catch(()=>{});
-  setTimeout(() => {                                    // hide video, splash art at 2.3s
+  setTimeout(() => {                                    // hide video, splash art at 2.1s
     vid.pause();
     vid.classList.add('gone');
     ui.introArt.classList.add('show');
-  }, 2300);
-  setTimeout(onDone, 4300);                             // 2.3s video + 2s art
+  }, 2100);
+  setTimeout(onDone, 4100);                             // 2.1s video + 2s art
 }
 async function boot(){
   wireUI();
   wireDeckScroll();
+  // click sound on interactive elements (not blank space / canvas)
+  document.addEventListener('pointerdown', ev => {
+    if (ev.target.closest('button, .hand-card, .deck-card, .deck-slot, .modal-card')) SFX.click();
+  });
   window.addEventListener('pointerdown', () => SFX.retryStartup());  // autoplay-blocked fallback
   let introDone = false, assetsDone = false;
   const proceed = () => { if (introDone && assetsDone) showScreen('screen-title'); };
