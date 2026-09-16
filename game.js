@@ -22,7 +22,7 @@ const CARDS = {
   archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:130,  dmg:45,  hitSpeed:1.0, range:95, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
   skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:35,   dmg:35,  hitSpeed:1.0, range:14, speed:55, radius:6,  sprite:'Skeleton',    targets:'ground' },
   giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:2100, dmg:130, hitSpeed:1.5, range:20, speed:22, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
-  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:640, dmg:330, hitSpeed:1.7, range:16, speed:55, radius:9, sprite:'PekkaMini', targets:'ground' },
+  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:640, dmg:330, hitSpeed:1.7, range:16, speed:55, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
   babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:820,  dmg:110, hitSpeed:1.6, range:88, speed:38, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
   speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:70,   dmg:28,  hitSpeed:1.1, range:100, speed:70, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
   golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:3200, dmg:140, hitSpeed:1.7, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:650, dmg:70, hitSpeed:1.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
@@ -53,6 +53,17 @@ const SFX = (() => {
     win(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,.22,'triangle',.09),i*140)); },
     lose(){ [392,330,262,196].forEach((f,i)=>setTimeout(()=>tone(f,.25,'triangle',.08),i*160)); },
     beep(){ tone(880,.08,'square',.05); },
+    startup(){
+      const a = SFX.startupAudio || (SFX.startupAudio = new Audio('assets/sound/startup.mp3'));
+      a.volume = 0.8;
+      a.currentTime = 0;
+      a.play().then(() => { SFX.startupPlayed = true; }).catch(() => { SFX.startupPending = true; });
+    },
+    retryStartup(){
+      if (!SFX.startupPending) return;
+      SFX.startupPending = false;
+      SFX.startup();
+    },
   };
 })();
 
@@ -151,12 +162,13 @@ async function loadAllAssets(){
 /* ---------------- DOM helpers ---------------- */
 const $ = id => document.getElementById(id);
 const ui = {};
-['loadBar','loadStep','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result',
+['loadBar','loadStep','screen-intro','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result',
+ 'introLogo','introArt',
  'deckGrid','deckSlots','deckCount','handRow','nextCard','elixirFill','elixirNum','gameCanvas','canvasWrap','timerLabel','phaseLabel',
  'playerCrowns','enemyCrowns','resultImg','resultCrowns','howModal','pauseModal','toastRoot'].forEach(id => ui[id.replace(/-(\w)/g,(m,c)=>c.toUpperCase())] = $(id));
 
 function showScreen(id){
-  ['screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result']
+  ['screen-intro','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result']
     .forEach(s => ui[s.replace(/-(\w)/g,(m,c)=>c.toUpperCase())].classList.toggle('hidden', s !== id));
 }
 function toast(msg){
@@ -335,8 +347,8 @@ function startBattle(){
   t.push(makeTower('enemy','princess',95,131,'L'));
   t.push(makeTower('enemy','princess',305,131,'R'));
   t.push(makeTower('player','king',200,406));
-  t.push(makeTower('player','princess',95,367,'L'));
-  t.push(makeTower('player','princess',305,367,'R'));
+  t.push(makeTower('player','princess',95,378,'L'));
+  t.push(makeTower('player','princess',305,378,'R'));
   battle.ai = makeAI(G.difficulty);
   showScreen('screen-battle');
   renderHand();
@@ -373,6 +385,7 @@ function spawnUnit(sideKey, card, x, y, isSpawnChild){
       deathSpawn: stat.deathSpawn || null,
       deathCount: stat.deathCount || 0,
       aimAng: 0,
+      scale: stat.scale || 1.3,
       x: x + o[0], y: y + o[1],
       target: null, retargetT: 0, atkCd: 0,
       animT: Math.random()*10, walkDist: 0,
@@ -962,7 +975,7 @@ function draw(){
       if (u.hp < u.maxHp) drawBar(u.x, u.y - 30, 26, u.hp/u.maxHp, u.side);
       continue;
     }
-    const scale = 1.3;
+    const scale = u.scale || 1.3;
     const dw = (img ? img.width : 30) * scale, dh = (img ? img.height : 30) * scale;
     if (img){
       if (u.spawnT > 0) ctx.globalAlpha = 0.5 + 0.5*Math.sin(u.spawnT*30);
@@ -1238,12 +1251,24 @@ function wireUI(){
 }
 
 /* ---------------- boot ---------------- */
+function runIntro(onDone){
+  showScreen('screen-intro');
+  ui.introLogo.classList.add('show');
+  setTimeout(() => SFX.startup(), 100);                 // sound at 0.1s
+  setTimeout(() => {                                    // switch to splash art at 0.3s
+    ui.introLogo.classList.remove('show');
+    ui.introArt.classList.add('show');
+  }, 300);
+  setTimeout(onDone, 2400);
+}
 async function boot(){
   wireUI();
   wireDeckScroll();
-  showScreen('screen-loading');
-  await loadAllAssets();
-  setTimeout(() => showScreen('screen-title'), 350);
+  window.addEventListener('pointerdown', () => SFX.retryStartup());  // autoplay-blocked fallback
+  let introDone = false, assetsDone = false;
+  const proceed = () => { if (introDone && assetsDone) showScreen('screen-title'); };
+  runIntro(() => { introDone = true; proceed(); });
+  loadAllAssets().then(() => { assetsDone = true; proceed(); });
   rafId = requestAnimationFrame(loop);
 }
 boot();

@@ -7,6 +7,13 @@ img { image-rendering:pixelated; }
 
 .screen { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; overflow:hidden; }
 
+/* ---------- STARTUP INTRO ---------- */
+#screen-intro { background:#000; z-index:80; }
+#introArt { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .45s ease; }
+#introArt.show { opacity:1; }
+#introLogo { position:relative; width:170px; opacity:0; transition:opacity .12s ease; z-index:2; }
+#introLogo.show { opacity:1; }
+
 /* ---------- LOADING ---------- */
 #screen-loading { background:radial-gradient(120% 120% at 50% 30%, #14336b 0%, #0a1a33 55%, #050b18 100%); z-index:50; }
 .load-inner { display:flex; flex-direction:column; align-items:center; gap:18px; width:min(80vw,340px); }
