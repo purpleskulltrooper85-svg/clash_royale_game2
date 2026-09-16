@@ -9,10 +9,17 @@ img { image-rendering:pixelated; }
 
 /* ---------- STARTUP INTRO ---------- */
 #screen-intro { background:#000; z-index:80; }
-#introArt { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .45s ease; }
-#introArt.show { opacity:1; }
-#introLogo { position:relative; width:170px; opacity:0; transition:opacity .12s ease; z-index:2; }
-#introLogo.show { opacity:1; }
+#introArt { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .35s ease; transform:scale(1); }
+#introArt.show { opacity:1; animation:artZoom 2.6s ease-out forwards; }
+@keyframes artZoom { from { transform:scale(1); } to { transform:scale(1.09); } }
+#introLogo { position:relative; width:150px; opacity:0; transform:scale(.55); z-index:2; }
+#introLogo.show { opacity:1; animation:logoPop .5s cubic-bezier(.34,1.56,.64,1) forwards; }
+@keyframes logoPop {
+  0% { opacity:0; transform:scale(.55); }
+  60% { opacity:1; transform:scale(1.08); }
+  100% { opacity:1; transform:scale(1); }
+}
+#screen-intro.fade-out { transition:opacity .4s; opacity:0; pointer-events:none; }
 
 /* ---------- LOADING ---------- */
 #screen-loading { background:radial-gradient(120% 120% at 50% 30%, #14336b 0%, #0a1a33 55%, #050b18 100%); z-index:50; }
