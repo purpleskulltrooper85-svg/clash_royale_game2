@@ -11,7 +11,7 @@ const VXOFF = -(W * VS - W) / 2;    // horizontal offset from uniform scale
 const RIVER_Y = 260, RIVER_HALF = 14;
 const BRIDGE_L = 95, BRIDGE_R = 305, BRIDGE_HALF = 18;
 const TILE = W / 18;                // CR-style 18-tile-wide grid
-const FIELD = { x0: 41, x1: 359, y0: 72, y1: 440 };  // playable placement area
+const FIELD = { x0: 30, x1: 370, y0: 72, y1: 440 };  // playable placement area
 const MATCH_TIME = 180, OVERTIME = 60;
 const ELIXIR_RATE = 1 / 2.8, ELIXIR_MAX = 10;
 const IMGDIR = 'assets/img/';
@@ -279,9 +279,9 @@ function startBattle(){
   initHand(battle.player, deck);
   initHand(battle.enemy, deck);
   const t = battle.towers;
-  t.push(makeTower('enemy','king',200,83));
-  t.push(makeTower('enemy','princess',95,131,'L'));
-  t.push(makeTower('enemy','princess',305,131,'R'));
+  t.push(makeTower('enemy','king',200,61));
+  t.push(makeTower('enemy','princess',95,109,'L'));
+  t.push(makeTower('enemy','princess',305,109,'R'));
   t.push(makeTower('player','king',200,384));
   t.push(makeTower('player','princess',95,345,'L'));
   t.push(makeTower('player','princess',305,345,'R'));
@@ -425,6 +425,14 @@ function acquireTarget(u){
       if (ranged && riverBlocked(u, b)) continue;
       const d = dist(u,b);
       if (d < bestD){ best = b; bestD = d; }
+    }
+    if (!best){
+      // everything was river-blocked — walk toward the nearest tower anyway;
+      // bridge pathing will carry the unit across
+      for (const b of buildingsOf(u.side === 'player' ? 'enemy' : 'player')){
+        const d = dist(u,b);
+        if (d < bestD){ best = b; bestD = d; }
+      }
     }
   }
   u.target = best;
@@ -815,18 +823,18 @@ function draw(){
     ctx.save();
     if (!card.spell){
       // zone fill
-      ctx.fillStyle = 'rgba(80,220,120,0.14)';
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
       ctx.fillRect(FIELD.x0, RIVER_Y+12, FIELD.x1-FIELD.x0, FIELD.y1-(RIVER_Y+12));
       if (b.towers[1].dead) ctx.fillRect(FIELD.x0, 195, 176, RIVER_Y+12-195);
       if (b.towers[2].dead) ctx.fillRect(200, 195, FIELD.x1-200, RIVER_Y+12-195);
       // CR-style tile grid
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.20)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let gx = Math.ceil(FIELD.x0/TILE); gx*TILE <= FIELD.x1; gx++){ const x = gx*TILE; ctx.moveTo(x, RIVER_Y+12); ctx.lineTo(x, FIELD.y1); }
       for (let gy = Math.ceil((RIVER_Y+12)/TILE); gy*TILE <= FIELD.y1; gy++){ const y = gy*TILE; ctx.moveTo(FIELD.x0, y); ctx.lineTo(FIELD.x1, y); }
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(120,255,160,0.45)'; ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
       ctx.strokeRect(FIELD.x0, RIVER_Y+12, FIELD.x1-FIELD.x0, FIELD.y1-(RIVER_Y+12));
     } else {
       ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.setLineDash([6,6]);
@@ -964,14 +972,14 @@ function draw(){
     const ok = deployValid(selKey, pos.x, pos.y, 'player') && b.player.elixir >= CARDS[selKey].cost;
     if (!CARDS[selKey].spell){
       // highlight the target tile
-      ctx.strokeStyle = ok ? 'rgba(125,255,154,0.9)' : 'rgba(255,125,125,0.9)';
+      ctx.strokeStyle = ok ? 'rgba(255,255,255,0.9)' : 'rgba(255,125,125,0.9)';
       ctx.lineWidth = 2;
       ctx.strokeRect(pos.x-TILE/2, pos.y-TILE/2, TILE, TILE);
     }
     ctx.beginPath(); ctx.arc(pos.x, pos.y, 13, 0, Math.PI*2);
-    ctx.fillStyle = ok ? 'rgba(90,230,120,0.35)' : 'rgba(230,70,70,0.35)';
+    ctx.fillStyle = ok ? 'rgba(255,255,255,0.30)' : 'rgba(230,70,70,0.35)';
     ctx.fill(); ctx.lineWidth = 2;
-    ctx.strokeStyle = ok ? '#7dff9a' : '#ff7d7d'; ctx.stroke();
+    ctx.strokeStyle = ok ? 'rgba(255,255,255,0.9)' : '#ff7d7d'; ctx.stroke();
   }
 
   // ----- UI layer (canvas pixels, not world coords) -----
