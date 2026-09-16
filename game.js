@@ -1258,12 +1258,12 @@ function runIntro(onDone){
   vid.classList.remove('gone');
   vid.currentTime = 0;
   vid.play().catch(()=>{});
-  setTimeout(() => {                                    // hide video, splash art at 3s
+  setTimeout(() => {                                    // hide video, splash art at 2.5s
     vid.pause();
     vid.classList.add('gone');
     ui.introArt.classList.add('show');
-  }, 3000);
-  setTimeout(onDone, 5000);                             // 3s video + 2s art
+  }, 2500);
+  setTimeout(onDone, 4500);                             // 2.5s video + 2s art
 }
 async function boot(){
   wireUI();
