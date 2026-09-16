@@ -51,7 +51,10 @@ img { image-rendering:pixelated; }
 .deck-slot img { width:100%; height:100%; border-radius:7px; }
 .deck-slot .slot-plus { display:flex; align-items:center; justify-content:center; height:100%; font-size:30px; color:#33517e; font-weight:bold; line-height:1; }
 .deck-slot .cost-badge { position:absolute; left:3px; top:3px; background:#e048c8; border:1.5px solid #fff; color:#fff; font-size:11px; font-weight:bold; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; line-height:1; }
-.deck-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%; flex:1; overflow-y:auto; padding:8px 6px; min-height:0; touch-action:none; cursor:grab; }
+.deck-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%; flex:1; overflow-y:auto; padding:8px 6px; min-height:0; touch-action:pan-y; cursor:grab; scrollbar-width:thin; scrollbar-color:#2d6bc0 #0a1630; overscroll-behavior:contain; }
+.deck-grid::-webkit-scrollbar { width:8px; }
+.deck-grid::-webkit-scrollbar-track { background:#0a1630; border-radius:4px; }
+.deck-grid::-webkit-scrollbar-thumb { background:#2d6bc0; border-radius:4px; }
 .deck-grid:active { cursor:grabbing; }
 .deck-card { position:relative; border:2.5px solid transparent; border-radius:10px; cursor:pointer; transition:transform .1s; line-height:0; background:rgba(10,22,46,.5); padding:3px; }
 .deck-card img { width:100%; border-radius:7px; pointer-events:none; }

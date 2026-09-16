@@ -213,6 +213,7 @@ function renderDeckScreen(){
 const dragScroll = { active:false, y0:0, top0:0, moved:false };
 function wireDeckScroll(){
   ui.deckGrid.addEventListener('pointerdown', ev => {
+    if (ev.pointerType !== 'mouse') return;   // touch uses native panning
     dragScroll.active = true; dragScroll.moved = false;
     dragScroll.y0 = ev.clientY; dragScroll.top0 = ui.deckGrid.scrollTop;
   });
@@ -221,6 +222,7 @@ function wireDeckScroll(){
     const dy = ev.clientY - dragScroll.y0;
     if (Math.abs(dy) > 8) dragScroll.moved = true;
     ui.deckGrid.scrollTop = dragScroll.top0 - dy;
+    ev.preventDefault();
   });
   window.addEventListener('pointerup', () => { dragScroll.active = false; setTimeout(()=>{ dragScroll.moved = false; }, 50); });
 }
@@ -279,12 +281,12 @@ function startBattle(){
   initHand(battle.player, deck);
   initHand(battle.enemy, deck);
   const t = battle.towers;
-  t.push(makeTower('enemy','king',200,61));
-  t.push(makeTower('enemy','princess',95,109,'L'));
-  t.push(makeTower('enemy','princess',305,109,'R'));
-  t.push(makeTower('player','king',200,384));
-  t.push(makeTower('player','princess',95,345,'L'));
-  t.push(makeTower('player','princess',305,345,'R'));
+  t.push(makeTower('enemy','king',200,83));
+  t.push(makeTower('enemy','princess',95,131,'L'));
+  t.push(makeTower('enemy','princess',305,131,'R'));
+  t.push(makeTower('player','king',200,406));
+  t.push(makeTower('player','princess',95,367,'L'));
+  t.push(makeTower('player','princess',305,367,'R'));
   battle.ai = makeAI(G.difficulty);
   showScreen('screen-battle');
   renderHand();
