@@ -1255,13 +1255,15 @@ function runIntro(onDone){
   showScreen('screen-intro');
   setTimeout(() => SFX.startup(), 100);                 // sound at 0.1s
   const vid = ui.introVideo;
+  vid.classList.remove('gone');
   vid.currentTime = 0;
   vid.play().catch(()=>{});
-  setTimeout(() => {                                    // splash art at 1s
+  setTimeout(() => {                                    // hide video, splash art at 3s
     vid.pause();
+    vid.classList.add('gone');
     ui.introArt.classList.add('show');
-  }, 1000);
-  setTimeout(onDone, 3000);                             // 1s video + 2s art
+  }, 3000);
+  setTimeout(onDone, 5000);                             // 3s video + 2s art
 }
 async function boot(){
   wireUI();
