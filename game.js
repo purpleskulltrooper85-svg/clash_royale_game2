@@ -33,31 +33,26 @@ const CARDS = {
 const ALL_CARD_KEYS = ['knight','archers','skeletons','giant','minipekka','babydragon','speargoblins','golem','cannon','fireball','poison'];
 const DEFAULT_DECK = ['knight','archers','skeletons','giant','minipekka','babydragon','speargoblins','fireball'];
 
-/* ---------------- tiny sound engine ---------------- */
+/* ---------------- sound ---------------- */
 const SFX = (() => {
-  let ctx = null;
-  function ac(){ try { ctx = ctx || new (window.AudioContext||window.webkitAudioContext)(); return ctx; } catch(e){ return null; } }
-  function tone(freq, dur, type, vol, slide){
-    const c = ac(); if (!c) return;
-    const o = c.createOscillator(), g = c.createGain();
-    o.type = type || 'square'; o.frequency.value = freq;
-    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq+slide), c.currentTime+dur);
-    g.gain.setValueAtTime(vol||0.06, c.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+dur);
-    o.connect(g).connect(c.destination); o.start(); o.stop(c.currentTime+dur);
-  }
   return {
-    deploy(){ tone(300,.14,'triangle',.08,180); },
-    spell(){ tone(140,.35,'sawtooth',.07,-90); },
-    towerDown(){ tone(90,.5,'sawtooth',.11,-50); setTimeout(()=>tone(60,.6,'sawtooth',.09,-30),120); },
-    win(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,.22,'triangle',.09),i*140)); },
-    lose(){ [392,330,262,196].forEach((f,i)=>setTimeout(()=>tone(f,.25,'triangle',.08),i*160)); },
-    beep(){ tone(880,.08,'square',.05); },
+    deploy(){}, spell(){}, towerDown(){}, win(){}, lose(){}, beep(){},
     click(){
       const a = SFX.clickAudio || (SFX.clickAudio = new Audio('assets/sound/click.mp3'));
       const inst = a.cloneNode();
       inst.volume = 0.55;
       inst.play().catch(()=>{});
+    },
+    music(){
+      const a = SFX.musicAudio || (SFX.musicAudio = new Audio('assets/sound/menu.mp3'));
+      a.loop = true;
+      a.volume = 0.5;
+      a.play().catch(() => { SFX.musicPending = true; });
+    },
+    retryMusic(){
+      if (!SFX.musicPending) return;
+      SFX.musicPending = false;
+      SFX.music();
     },
     startup(){
       const a = SFX.startupAudio || (SFX.startupAudio = new Audio('assets/sound/startup.mp3'));
@@ -1278,9 +1273,9 @@ async function boot(){
   document.addEventListener('pointerdown', ev => {
     if (ev.target.closest('button, .hand-card, .deck-card, .deck-slot, .modal-card')) SFX.click();
   });
-  window.addEventListener('pointerdown', () => SFX.retryStartup());  // autoplay-blocked fallback
+  window.addEventListener('pointerdown', () => { SFX.retryStartup(); SFX.retryMusic(); });  // autoplay-blocked fallback
   let introDone = false, assetsDone = false;
-  const proceed = () => { if (introDone && assetsDone) showScreen('screen-title'); };
+  const proceed = () => { if (introDone && assetsDone){ showScreen('screen-title'); SFX.music(); } };
   runIntro(() => { introDone = true; proceed(); });
   loadAllAssets().then(() => { assetsDone = true; proceed(); });
   rafId = requestAnimationFrame(loop);
