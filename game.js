@@ -163,7 +163,7 @@ async function loadAllAssets(){
 const $ = id => document.getElementById(id);
 const ui = {};
 ['loadBar','loadStep','screen-intro','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result',
- 'introLogo','introArt',
+ 'introVideo','introArt',
  'deckGrid','deckSlots','deckCount','handRow','nextCard','elixirFill','elixirNum','gameCanvas','canvasWrap','timerLabel','phaseLabel',
  'playerCrowns','enemyCrowns','resultImg','resultCrowns','howModal','pauseModal','toastRoot'].forEach(id => ui[id.replace(/-(\w)/g,(m,c)=>c.toUpperCase())] = $(id));
 
@@ -1253,13 +1253,15 @@ function wireUI(){
 /* ---------------- boot ---------------- */
 function runIntro(onDone){
   showScreen('screen-intro');
-  ui.introLogo.classList.add('show');
   setTimeout(() => SFX.startup(), 100);                 // sound at 0.1s
-  setTimeout(() => {                                    // switch to splash art at 0.5s
-    ui.introLogo.classList.remove('show');
+  const vid = ui.introVideo;
+  vid.currentTime = 0;
+  vid.play().catch(()=>{});
+  setTimeout(() => {                                    // splash art at 1s
+    vid.pause();
     ui.introArt.classList.add('show');
-  }, 500);
-  setTimeout(onDone, 1100);                             // 0.5s logo + 0.5s art + fade
+  }, 1000);
+  setTimeout(onDone, 3000);                             // 1s video + 2s art
 }
 async function boot(){
   wireUI();
