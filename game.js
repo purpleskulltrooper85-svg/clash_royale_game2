@@ -198,33 +198,83 @@ function renderDeckScreen(){
     el.addEventListener('click', () => {
       if (dragScroll.moved) return;   // ignore click at end of a scroll drag
       const i = G.deck.indexOf(k);
-      if (i >= 0) G.deck.splice(i,1);
-      else {
-        if (G.deck.length >= 8){ toast('Deck is full — tap a deck card to remove it'); return; }
+      const fromRect = el.getBoundingClientRect();
+      if (i >= 0){
+        // deselect: card flies back from deck slot to the collection
+        G.deck.splice(i,1);
+        renderDeckScreen();
+        const cardEl = ui.deckGrid.querySelector(`.deck-card[data-key="${k}"]`);
+        if (cardEl){
+          const toRect = cardEl.getBoundingClientRect();
+          cardEl.style.visibility = 'hidden';
+          flyClone(IMG['card_'+k].src, fromRect, toRect, () => {
+            cardEl.style.visibility = '';
+            cardEl.classList.add('landed');
+            setTimeout(()=>cardEl.classList.remove('landed'), 340);
+          });
+        }
+      } else {
+        if (G.deck.length >= 8){ toast('Deck is full — tap a deck card to remove it'); shakeEl(ui.deckSlots); return; }
+        // select: card flies from the collection into the empty deck slot
         G.deck.push(k);
+        const slotIdx = G.deck.length - 1;
+        renderDeckScreen();
+        const slot = ui.deckSlots.children[slotIdx];
+        if (slot){
+          const toRect = slot.getBoundingClientRect();
+          slot.style.visibility = 'hidden';
+          flyClone(IMG['card_'+k].src, fromRect, toRect, () => {
+            slot.style.visibility = '';
+            slot.classList.add('landed');
+            setTimeout(()=>slot.classList.remove('landed'), 340);
+          });
+        }
       }
-      renderDeckScreen();
       SFX.beep();
     });
     ui.deckGrid.appendChild(el);
   });
   updateDeckCount();
 }
-const dragScroll = { active:false, y0:0, top0:0, moved:false };
+const dragScroll = { moved:false };
+function shakeEl(el){
+  el.classList.remove('shake-x'); void el.offsetWidth;
+  el.classList.add('shake-x'); setTimeout(()=>el.classList.remove('shake-x'), 320);
+}
+function flyClone(src, from, to, done){
+  const c = document.createElement('div');
+  c.className = 'fly-clone';
+  c.innerHTML = `<img draggable="false" src="${src}">`;
+  c.style.left = from.left+'px'; c.style.top = from.top+'px';
+  c.style.width = from.width+'px'; c.style.height = from.height+'px';
+  document.body.appendChild(c);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    c.style.transform = `translate(${to.left-from.left}px, ${to.top-from.top}px) scale(${to.width/from.width}, ${to.height/from.height})`;
+  }));
+  setTimeout(() => { c.remove(); if (done) done(); }, 390);
+}
 function wireDeckScroll(){
-  ui.deckGrid.addEventListener('pointerdown', ev => {
-    if (ev.pointerType !== 'mouse') return;   // touch uses native panning
-    dragScroll.active = true; dragScroll.moved = false;
-    dragScroll.y0 = ev.clientY; dragScroll.top0 = ui.deckGrid.scrollTop;
+  const grid = ui.deckGrid;
+  let drag = null;
+  // mouse: drag to pan (touch/trackpad use native scrolling)
+  grid.addEventListener('pointerdown', ev => {
+    if (ev.pointerType !== 'mouse') return;
+    drag = { y0: ev.clientY, top0: grid.scrollTop, moved: false, id: ev.pointerId };
+    grid.classList.add('dragging');
   });
   window.addEventListener('pointermove', ev => {
-    if (!dragScroll.active) return;
-    const dy = ev.clientY - dragScroll.y0;
-    if (Math.abs(dy) > 8) dragScroll.moved = true;
-    ui.deckGrid.scrollTop = dragScroll.top0 - dy;
-    ev.preventDefault();
+    if (!drag || ev.pointerId !== drag.id) return;
+    const dy = ev.clientY - drag.y0;
+    if (Math.abs(dy) > 6) drag.moved = true;
+    grid.scrollTop = drag.top0 - dy;
   });
-  window.addEventListener('pointerup', () => { dragScroll.active = false; setTimeout(()=>{ dragScroll.moved = false; }, 50); });
+  window.addEventListener('pointerup', ev => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    dragScroll.moved = drag.moved;
+    drag = null;
+    grid.classList.remove('dragging');
+    setTimeout(() => { dragScroll.moved = false; }, 60);
+  });
 }
 function updateDeckCount(){
   ui.deckCount.textContent = `${G.deck.length} / 8`;
@@ -1078,6 +1128,14 @@ ui.handRow.addEventListener('pointerdown', ev => {
   ev.preventDefault();
   const idx = +el.dataset.idx;
   const k = battle.player.hand[idx];
+  if (battle.selected === idx){
+    // tap the selected card again to deselect — springs back down
+    battle.selected = -1; battle.pointerPos = null; dragInfo = null;
+    el.classList.add('settle');
+    setTimeout(()=>el.classList.remove('settle'), 260);
+    updateHandAffordability();
+    return;
+  }
   if (battle.player.elixir < CARDS[k].cost){
     el.classList.add('shake'); setTimeout(()=>el.classList.remove('shake'), 320);
     toast('Not enough elixir!');
