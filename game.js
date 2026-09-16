@@ -22,9 +22,9 @@ const CARDS = {
   archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:130,  dmg:45,  hitSpeed:1.0, range:95, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
   skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:35,   dmg:35,  hitSpeed:1.0, range:14, speed:55, radius:6,  sprite:'Skeleton',    targets:'ground' },
   giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:2100, dmg:130, hitSpeed:1.5, range:20, speed:22, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
-  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:640, dmg:330, hitSpeed:1.7, range:16, speed:55, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
-  babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:820,  dmg:110, hitSpeed:1.6, range:88, speed:38, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
-  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:70,   dmg:28,  hitSpeed:1.1, range:100, speed:70, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
+  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:640, dmg:330, hitSpeed:1.7, range:16, speed:50, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
+  babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:820,  dmg:110, hitSpeed:1.6, range:88, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
+  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:70,   dmg:28,  hitSpeed:1.1, range:100, speed:63, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
   golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:3200, dmg:140, hitSpeed:1.7, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:650, dmg:70, hitSpeed:1.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
   cannon:      { key:'cannon',      label:'Cannon',       cost:3, count:1, hp:420,  dmg:85,  hitSpeed:0.9, range:122, speed:0, radius:11, building:true, sprite:'Cannon', targets:'ground', lifetime:30, projectile:'canonball' },
   fireball:    { key:'fireball',    label:'Fireball',     cost:4, spell:true, dmg:340, radius:42, towerFactor:0.4 },
@@ -1255,11 +1255,11 @@ function runIntro(onDone){
   showScreen('screen-intro');
   ui.introLogo.classList.add('show');
   setTimeout(() => SFX.startup(), 100);                 // sound at 0.1s
-  setTimeout(() => {                                    // switch to splash art at 0.3s
+  setTimeout(() => {                                    // switch to splash art at 0.5s
     ui.introLogo.classList.remove('show');
     ui.introArt.classList.add('show');
-  }, 300);
-  setTimeout(onDone, 2400);
+  }, 500);
+  setTimeout(onDone, 1100);                             // 0.5s logo + 0.5s art + fade
 }
 async function boot(){
   wireUI();
