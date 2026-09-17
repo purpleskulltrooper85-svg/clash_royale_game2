@@ -19,12 +19,12 @@ const IMGDIR = 'assets/img/';
 /* ---------------- card definitions ---------------- */
 const CARDS = {
   knight:      { key:'knight',      label:'Knight',       cost:3, count:1, hp:1766, dmg:202,  hitSpeed:1.2, range:18, speed:38, radius:9,  sprite:'Knight',      targets:'ground' },
-  archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:42, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
+  archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:49, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
   skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:81,   dmg:81,   hitSpeed:1.1, range:14, speed:49, radius:6,  sprite:'Skeleton',    targets:'ground' },
   giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:4090, dmg:253,  hitSpeed:1.5, range:20, speed:22, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
   minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1390, dmg:755, hitSpeed:1.6, range:16, speed:45, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
   babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:1152, dmg:161,  hitSpeed:1.5, range:42, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
-  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:42, speed:57, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
+  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:49, speed:57, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
   golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:5120, dmg:312,  hitSpeed:2.5, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:1039, dmg:84, hitSpeed:2.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
   cannon:      { key:'cannon',      label:'Cannon',       cost:3, count:1, hp:824,  dmg:212,  hitSpeed:0.9, range:122, speed:0, radius:11, building:true, sprite:'Cannon', targets:'ground', lifetime:30, projectile:'canonball' },
   fireball:    { key:'fireball',    label:'Fireball',     cost:4, spell:true, dmg:688, radius:42, towerFactor:0.4 },
@@ -284,6 +284,7 @@ function renderDeckScreen(){
   updateDeckCount();
 }
 const dragScroll = { moved:false };
+const deckCardDrag = { active:false };
 function shakeEl(el){
   el.classList.remove('shake-x'); void el.offsetWidth;
   el.classList.add('shake-x'); setTimeout(()=>el.classList.remove('shake-x'), 320);
@@ -309,6 +310,7 @@ function wireDeckScroll(){
     drag = { y0: ev.clientY, top0: grid.scrollTop, moved: false, id: ev.pointerId };
   });
   window.addEventListener('pointermove', ev => {
+    if (deckCardDrag.active) return;   // card drag takes priority over scroll pan
     if (!drag || ev.pointerId !== drag.id) return;
     const dy = ev.clientY - drag.y0;
     if (!drag.moved && Math.abs(dy) > 6){ drag.moved = true; grid.classList.add('dragging'); }
@@ -320,6 +322,63 @@ function wireDeckScroll(){
     drag = null;
     grid.classList.remove('dragging');
     setTimeout(() => { dragScroll.moved = false; }, 60);
+  });
+}
+function wireDeckCardDrag(){
+  let st = null;
+  ui.deckGrid.addEventListener('pointerdown', ev => {
+    const card = ev.target.closest('.deck-card');
+    if (!card || ev.pointerType !== 'mouse') return;
+    st = { key: card.dataset.key, el: card, x0: ev.clientX, y0: ev.clientY, r: card.getBoundingClientRect(), active:false, clone:null, overSlot:null };
+  });
+  window.addEventListener('pointermove', ev => {
+    if (!st) return;
+    if (!st.active){
+      if (Math.hypot(ev.clientX-st.x0, ev.clientY-st.y0) < 8) return;
+      st.active = true; deckCardDrag.active = true;
+      st.clone = document.createElement('div');
+      st.clone.className = 'fly-clone holding';
+      st.clone.innerHTML = `<img draggable="false" src="${IMG['card_'+st.key].src}">`;
+      st.clone.style.left = st.r.left+'px'; st.clone.style.top = st.r.top+'px';
+      st.clone.style.width = st.r.width+'px'; st.clone.style.height = st.r.height+'px';
+      document.body.appendChild(st.clone);
+      st.el.classList.add('drag-origin');
+    }
+    ev.preventDefault();
+    st.clone.style.left = (ev.clientX - st.r.width/2)+'px';
+    st.clone.style.top  = (ev.clientY - st.r.height/2)+'px';
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    const slot = under && under.closest ? under.closest('.deck-slot') : null;
+    document.querySelectorAll('.deck-slot.drop-target').forEach(s => s.classList.remove('drop-target'));
+    if (slot) slot.classList.add('drop-target');
+    st.overSlot = slot;
+  });
+  window.addEventListener('pointerup', () => {
+    if (!st) return;
+    if (st.active){
+      deckCardDrag.active = false;
+      dragScroll.moved = true; setTimeout(()=>{ dragScroll.moved = false; }, 60);
+      const slot = st.overSlot;
+      document.querySelectorAll('.deck-slot.drop-target').forEach(s => s.classList.remove('drop-target'));
+      st.clone.remove();
+      st.el.classList.remove('drag-origin');
+      if (slot){
+        const idx = [...ui.deckSlots.children].indexOf(slot);
+        const key = st.key;
+        const at = G.deck.indexOf(key);
+        const occupant = G.deck[idx];
+        if (idx >= 0 && idx !== at){
+          if (at >= 0){
+            if (occupant){ G.deck[at] = occupant; G.deck[idx] = key; }   // swap two deck cards
+            else { G.deck.splice(at,1); G.deck.splice(idx,0,key); }      // reorder
+          } else {
+            G.deck[idx] = key;                                           // replace / fill slot
+          }
+          renderDeckScreen(); SFX.beep();
+        }
+      }
+    }
+    st = null;
   });
 }
 function updateDeckCount(){
@@ -650,9 +709,10 @@ function destroyTower(t){
     defender.princessDead[t.lane] = true;
   }
   battle.banners.push({ text: t.side === 'enemy' ? 'ENEMY TOWER DESTROYED!' : 'YOUR TOWER DESTROYED!', t:0, dur:2.2, color: t.side === 'enemy' ? '#8ee6ff' : '#ff8080' });
-  // fire explosion at the fallen tower + crown popup
+  // fire explosion at the fallen tower + crown popup + short burning rubble
   const frS = FRAMES.SpellFireball;
   if (frS && frS.attack.length) battle.effects.push({ type:'explosion', x:t.x, y:t.y-8, t:0, dur: Math.max(0.5, frS.attack.length/14) });
+  if (frS && frS.attack.length) battle.effects.push({ type:'rubbleFire', x:t.x, y:t.y-(t.kind==='king'?24:20), t:0, dur:3.5 });
   battle.effects.push({ type:'crown', x:t.x, y:t.y-40, t:0, dur:1.4 });
   SFX.towerDown();
   // sudden death: first crown wins
@@ -703,7 +763,7 @@ function makeAI(diff){
     medium: { interval:[1.6,2.6], skipChance:0.2,  defendChance:1.0,  spellIQ:1, pushElixir:7, defendElixir:0 },
     hard:   { interval:[0.9,1.7], skipChance:0.05, defendChance:1.0,  spellIQ:2, pushElixir:6, defendElixir:0 },
   }[diff];
-  return { cfg, timer: 2.5, lastCard: null, dupeT: 0 };
+  return { cfg, timer: 2.5, lock: {} };
 }
 
 function enemyFieldHas(cardKey){
@@ -712,16 +772,15 @@ function enemyFieldHas(cardKey){
 function aiSpend(cardKey, x, y){
   if (!enemyDeploy(cardKey, x, y)) return false;
   const ai = battle.ai;
-  ai.lastCard = cardKey;
-  ai.dupeT = 4;   // brief repeat cooldown on top of the "one copy alive" rule
+  // after playing a card, it's locked until the AI has played 4 more cards
+  ai.lock[cardKey] = 4;
+  for (const k in ai.lock){ if (k !== cardKey && ai.lock[k] > 0) ai.lock[k]--; }
   return true;
 }
 
 function aiThink(dt){
   const ai = battle.ai, b = battle;
-  if (ai.dupeT > 0) ai.dupeT -= dt;
-  ai.timer -= dt;
-  if (ai.timer > 0) return;
+  ai.timer -= dt;  if (ai.timer > 0) return;
   const c = ai.cfg;
   ai.timer = c.interval[0] + Math.random()*(c.interval[1]-c.interval[0]);
   if (Math.random() < c.skipChance) return;
@@ -730,7 +789,7 @@ function aiThink(dt){
   let affordable = e.hand.map((k,i)=>({k,i,c:CARDS[k]})).filter(o => o.c.cost <= e.elixir);
   // one copy of each troop/building at a time + no instant re-play of the last card
   affordable = affordable.filter(o =>
-    !enemyFieldHas(o.k) && !(ai.dupeT > 0 && o.k === ai.lastCard));
+    !enemyFieldHas(o.k) && !(ai.lock[o.k] > 0));
   if (!affordable.length) return;
 
   // threats: player units on enemy side or crossing
@@ -992,11 +1051,12 @@ function draw(){
     ctx.restore();
   }
 
-  // spell target circle while dragging spell
+  // spell target circle while dragging spell (snapped to grid like troops)
   if (selKey && b.pointerPos){
     if (CARDS[selKey].spell){
+      const sp = snapTile(b.pointerPos);
       const r = CARDS[selKey].radius;
-      ctx.beginPath(); ctx.arc(b.pointerPos.x, b.pointerPos.y, r, 0, Math.PI*2);
+      ctx.beginPath(); ctx.arc(sp.x, sp.y, r, 0, Math.PI*2);
       ctx.fillStyle = selKey==='poison' ? 'rgba(160,60,200,0.25)' : 'rgba(255,120,50,0.25)';
       ctx.fill(); ctx.strokeStyle = selKey==='poison' ? 'rgba(220,120,255,0.8)' : 'rgba(255,160,80,0.9)';
       ctx.lineWidth = 2; ctx.stroke();
@@ -1018,14 +1078,6 @@ function draw(){
     if (t.dead){
       const rh = t.kind==='king' ? 48 : 41, rw = 60;
       if (IMG.towerDestroyed) ctx.drawImage(IMG.towerDestroyed, t.x-rw/2, t.y-rh/2, rw, rh);
-      // burning fire on the rubble
-      const frS = FRAMES.SpellFireball;
-      if (frS && frS.attack.length){
-        const fi = Math.floor(performance.now()/1000*10) % frS.attack.length;
-        ctx.globalAlpha = 0.85;
-        ctx.drawImage(frS.attack[fi], t.x-16, t.y-rh/2-10, 32, 32);
-        ctx.globalAlpha = 1;
-      }
       continue;
     }
     const upKey = (t.kind==='king' ? 'towerUpKing' : 'towerUpPrincess') + (t.side==='player' ? 'Blue' : '');
@@ -1127,6 +1179,14 @@ function draw(){
         const fi = Math.min(fr.attack.length-1, Math.floor(e.t/e.dur * fr.attack.length));
         ctx.drawImage(fr.attack[fi], e.x-40, e.y-40, 80, 80);
       }
+    } else if (e.type === 'rubbleFire'){
+      const fr = FRAMES.SpellFireball;
+      if (fr && fr.attack.length){
+        const fi = Math.min(fr.attack.length-1, Math.floor(e.t/e.dur * fr.attack.length * 2));
+        ctx.globalAlpha = e.t > e.dur - 1 ? Math.max(0, (e.dur - e.t)) : 0.85;
+        ctx.drawImage(fr.attack[fi], e.x-17, e.y-24, 34, 34);
+        ctx.globalAlpha = 1;
+      }
     } else if (e.type === 'crown'){
       if (IMG.crown){
         const pr = Math.min(1, e.t/e.dur);
@@ -1140,7 +1200,7 @@ function draw(){
 
   // drop indicator (snapped to tile grid for troops)
   if (selKey && b.pointerPos){
-    const pos = CARDS[selKey].spell ? b.pointerPos : snapTile(b.pointerPos);
+    const pos = snapTile(b.pointerPos);
     const ok = deployValid(selKey, pos.x, pos.y, 'player') && b.player.elixir >= CARDS[selKey].cost;
     if (!CARDS[selKey].spell){
       // highlight the target tile
@@ -1232,7 +1292,7 @@ let dragInfo = null; // { idx, x0, y0, moved }
 function tryDeployAt(pos){
   const b = battle;
   const k = b.player.hand[b.selected];
-  const p = CARDS[k].spell ? pos : snapTile(pos);
+  const p = snapTile(pos);
   if (playerDeploy(k, p.x, p.y)){
     cycleCard(b.player, b.selected);
     b.selected = -1; b.pointerPos = null; dragInfo = null;
@@ -1377,6 +1437,13 @@ function runIntro(onDone){
 async function boot(){
   wireUI();
   wireDeckScroll();
+  wireDeckCardDrag();
+  $('btnRandom').addEventListener('click', () => {
+    const pool = ALL_CARD_KEYS.slice();
+    for (let i = pool.length-1; i > 0; i--){ const j = (Math.random()*(i+1))|0; [pool[i],pool[j]] = [pool[j],pool[i]]; }
+    G.deck = pool.slice(0,8);
+    renderDeckScreen(); SFX.beep(); toast('Random deck!');
+  });
   // click sound on interactive elements (not blank space / canvas)
   document.addEventListener('pointerdown', ev => {
     if (ev.target.closest('button, .hand-card, .deck-card, .deck-slot, .modal-card')) SFX.click();

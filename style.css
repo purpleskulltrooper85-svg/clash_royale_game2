@@ -72,6 +72,20 @@ img { image-rendering:pixelated; }
 .deck-grid:active { cursor:grabbing; }
 .deck-grid.dragging { cursor:grabbing; }
 .deck-grid.dragging .deck-card { pointer-events:none; }
+.fly-clone.holding { transition:none; animation:cardWobble .5s ease-in-out infinite alternate; }
+@keyframes cardWobble {
+  from { transform: rotate(-6deg) scale(1.08); }
+  to   { transform: rotate(6deg) scale(1.08); }
+}
+.deck-card.drag-origin { opacity:.35; }
+.deck-slot.drop-target { outline:3px solid #8ee6ff; outline-offset:1px; transform:scale(1.07); }
+.rainbow-btn {
+  background: linear-gradient(90deg,#ff4d4d,#ffae00,#fff600,#4dff4d,#00d0ff,#7a4dff,#ff4d4d);
+  background-size: 400% 100%;
+  animation: rainbowSlide 2.4s linear infinite;
+  color:#fff; text-shadow: 0 1px 3px rgba(0,0,0,.55);
+}
+@keyframes rainbowSlide { to { background-position: 400% 0; } }
 .deck-card { position:relative; border:2.5px solid transparent; border-radius:10px; cursor:pointer; transition:transform .12s ease; line-height:0; background:rgba(10,22,46,.5); padding:3px; }
 .deck-card:active { transform:scale(.93); }
 .deck-card.landed { animation:slotPop .34s cubic-bezier(.34,1.56,.64,1); }
@@ -120,9 +134,9 @@ img { image-rendering:pixelated; }
 .elixir-row { display:flex; align-items:center; gap:5px; padding:0 4px; }
 .elixir-bar { position:relative; flex:1; height:22px; border-radius:11px; background:#1c0f2e; border:2px solid #4a2a6e; overflow:hidden; }
 .elixir-fill { position:absolute; inset:0; width:50%; background:url('assets/img/ElixirBarShape.png') center/cover no-repeat; transition:width .12s linear; }
-.elixir-bar::after { content:''; position:absolute; inset:0; pointer-events:none;
+.elixir-bar::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
   background:repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 2px), rgba(20,4,30,.55) calc(10% - 2px), rgba(20,4,30,.55) 10%); }
-.elixir-num { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold; text-shadow:0 1px 3px #000; }
+.elixir-num { position:absolute; inset:0; z-index:2; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold; text-shadow:0 1px 3px #000; }
 .elixir-bar.full { animation:elixirPulse .45s ease-in-out infinite; }
 @keyframes elixirPulse {
   0%,100% { transform:translateX(0); box-shadow:0 0 6px 1px rgba(240,110,240,.7); }
