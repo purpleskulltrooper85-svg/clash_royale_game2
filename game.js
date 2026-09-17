@@ -22,7 +22,7 @@ const CARDS = {
   archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:49, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
   skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:81,   dmg:81,   hitSpeed:1.1, range:14, speed:49, radius:6,  sprite:'Skeleton',    targets:'ground' },
   giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:4090, dmg:253,  hitSpeed:1.5, range:20, speed:22, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
-  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1390, dmg:755, hitSpeed:1.6, range:16, speed:45, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
+  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1300, dmg:715, hitSpeed:1.6, range:16, speed:45, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
   babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:1152, dmg:161,  hitSpeed:1.5, range:42, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
   speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:49, speed:57, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
   golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:5120, dmg:312,  hitSpeed:2.5, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:1039, dmg:84, hitSpeed:2.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
@@ -36,7 +36,13 @@ const DEFAULT_DECK = ['knight','archers','skeletons','giant','minipekka','babydr
 /* ---------------- sound ---------------- */
 const SFX = (() => {
   return {
-    deploy(){}, spell(){}, towerDown(){}, win(){}, lose(){}, beep(){},
+    deploy(){}, spell(){}, win(){}, lose(){}, beep(){},
+    towerDown(){
+      const a = SFX.towerAudio || (SFX.towerAudio = new Audio('assets/sound/tower-down.wav'));
+      const inst = a.cloneNode();
+      inst.volume = 0.8;
+      inst.play().catch(()=>{});
+    },
     click(){
       const a = SFX.clickAudio || (SFX.clickAudio = new Audio('assets/sound/click.mp3'));
       const inst = a.cloneNode();
@@ -488,8 +494,19 @@ function spawnUnit(sideKey, card, x, y, isSpawnChild){
       dead: false, spawnT: 0.35,
     };
     if (u.projectile === 'fireball') u.projectileSprite = 'pjFireball';
+    if (u.projectile === 'canonball') u.projectileSprite = 'pjCanonball';
     battle.units.push(u); made.push(u);
   });
+  // a newly placed building pulls nearby troops off their tower target
+  if (!isSpawnChild && card && card.building && made.length){
+    const bld = made[0];
+    for (const f of battle.units){
+      if (f.side === sideKey || f.dead || !f.target || f.target.dead) continue;
+      if (f.target.kind){   // currently bound to a tower
+        if (dist(f, bld) < dist(f, f.target)) f.target = bld;
+      }
+    }
+  }
   battle.effects.push({ type:'spawn', x, y, t:0, dur:0.4 });
   return made;
 }
@@ -566,6 +583,16 @@ function riverBlocked(a, b){
   return !(Math.abs(mx - BRIDGE_L) <= BRIDGE_HALF + 8 || Math.abs(mx - BRIDGE_R) <= BRIDGE_HALF + 8);
 }
 
+function kingTargetable(u, king){
+  // troops always hit a standing princess first; the king opens up in its lane
+  const defenderSide = king.side;
+  const prs = battle.towers.filter(t => t.side === defenderSide && t.kind === 'princess' && !t.dead);
+  if (prs.length === 0) return true;                    // both down -> king free
+  if (prs.length === 2) return false;                   // pocket placements go to a princess first
+  // one princess down: king is only fair game on that side of the arena
+  const deadLaneX = battle.towers.find(t => t.side === defenderSide && t.kind === 'princess' && t.dead).x;
+  return (u.x < 200) === (deadLaneX < 200);
+}
 function acquireTarget(u){
   const foes = enemiesOf(u.side);
   let best = null, bestD = 1e9;
@@ -582,6 +609,7 @@ function acquireTarget(u){
   if (!best){
     bestD = 1e9;
     for (const b of buildingsOf(u.side === 'player' ? 'enemy' : 'player')){
+      if (b.kind === 'king' && !kingTargetable(u, b)) continue;
       if (ranged && riverBlocked(u, b)) continue;
       const d = dist(u,b);
       if (d < bestD){ best = b; bestD = d; }
@@ -590,6 +618,7 @@ function acquireTarget(u){
       // everything was river-blocked — walk toward the nearest tower anyway;
       // bridge pathing will carry the unit across
       for (const b of buildingsOf(u.side === 'player' ? 'enemy' : 'player')){
+        if (b.kind === 'king' && !kingTargetable(u, b)) continue;
         const d = dist(u,b);
         if (d < bestD){ best = b; bestD = d; }
       }
@@ -676,6 +705,7 @@ function attackUpdate(u, dt){
 
 function dealDamage(victim, dmg, fromSide){
   if (victim.dead || victim.hp <= 0) return;
+  if (victim.building) dmg *= 0.7;   // buildings are tanky vs tanks like giant/golem/minipekka
   victim.hp -= dmg;
   if (victim.kind){ // tower
     if (!victim.active){ victim.active = true; }
@@ -713,7 +743,7 @@ function destroyTower(t){
   const frS = FRAMES.SpellFireball;
   if (frS && frS.attack.length) battle.effects.push({ type:'explosion', x:t.x, y:t.y-8, t:0, dur: Math.max(0.5, frS.attack.length/14) });
   if (frS && frS.attack.length) battle.effects.push({ type:'rubbleFire', x:t.x, y:t.y-(t.kind==='king'?24:20), t:0, dur:3.5 });
-  battle.effects.push({ type:'crown', x:t.x, y:t.y-40, t:0, dur:1.4 });
+  battle.effects.push({ type:'crown', x:t.x, y:t.y-40, t:0, dur:2.4 });
   SFX.towerDown();
   // sudden death: first crown wins
   if (battle.overtime && (battle.player.crowns !== battle.enemy.crowns)) endBattle();
@@ -1012,7 +1042,14 @@ ctx.imageSmoothingEnabled = true;
 ctx.imageSmoothingQuality = 'high';
 
 function snapTile(p){
-  return { x: Math.floor(p.x/TILE)*TILE + TILE/2, y: Math.floor(p.y/TILE)*TILE + TILE/2 };
+  // half-tile grid: tile centers AND midpoints between them, clamped so the
+  // outer half-tile ring stays unplaceable (zone boundary unchanged)
+  const hs = TILE / 2;
+  let x = Math.round((p.x - TILE/2) / hs) * hs + TILE/2;
+  let y = Math.round((p.y - TILE/2) / hs) * hs + TILE/2;
+  x = Math.max(FIELD.x0 + TILE/2, Math.min(FIELD.x1 - TILE/2, x));
+  y = Math.max(FIELD.y0 + TILE/2, Math.min(FIELD.y1 - TILE/2, y));
+  return { x, y };
 }
 
 function draw(){
@@ -1189,11 +1226,14 @@ function draw(){
       }
     } else if (e.type === 'crown'){
       if (IMG.crown){
-        const pr = Math.min(1, e.t/e.dur);
-        const cw = 26;
-        ctx.globalAlpha = 1 - pr;
-        ctx.drawImage(IMG.crown, e.x-cw/2, e.y - pr*34 - cw/2, cw, cw*IMG.crown.height/IMG.crown.width);
-        ctx.globalAlpha = 1;
+        const HOLD = 0.6;   // wait a little at full size, then shrink away
+        const k = Math.max(0, Math.min(1, (e.t - HOLD) / (e.dur - HOLD)));
+        const cw = 30 * (1 - k);
+        if (cw > 0.5){
+          ctx.globalAlpha = 1 - k;
+          ctx.drawImage(IMG.crown, e.x-cw/2, e.y - k*20 - cw/2, cw, cw*IMG.crown.height/IMG.crown.width);
+          ctx.globalAlpha = 1;
+        }
       }
     }
   }
@@ -1450,7 +1490,7 @@ async function boot(){
   });
   window.addEventListener('pointerdown', () => { SFX.retryStartup(); SFX.retryMusic(); });  // autoplay-blocked fallback
   let introDone = false, assetsDone = false;
-  const proceed = () => { if (introDone && assetsDone){ showScreen('screen-title'); SFX.music(); } };
+  const proceed = () => { if (introDone && assetsDone){ showScreen('screen-menu'); SFX.music(); } };
   runIntro(() => { introDone = true; proceed(); });
   loadAllAssets().then(() => { assetsDone = true; proceed(); });
   rafId = requestAnimationFrame(loop);
