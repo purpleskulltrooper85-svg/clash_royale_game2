@@ -1555,19 +1555,25 @@ function draw(){
   }
 
   // drop indicator (snapped to tile grid for troops)
+  // only show while the cursor is genuinely inside the grid — the snap clamp
+  // would otherwise pin the circle to the zone edge when hovering outside it
   if (selKey && b.pointerPos){
-    const pos = snapTile(b.pointerPos);
-    const ok = deployValid(selKey, pos.x, pos.y, 'player') && b.player.elixir >= CARDS[selKey].cost;
-    if (!CARDS[selKey].spell){
-      // highlight the target tile
-      ctx.strokeStyle = ok ? 'rgba(255,255,255,0.9)' : 'rgba(255,125,125,0.9)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(pos.x-TILE/2, pos.y-TILE/2, TILE, TILE);
+    const inGrid = b.pointerPos.x > FIELD.x0 && b.pointerPos.x < FIELD.x1 &&
+                   b.pointerPos.y > FIELD.y0 && b.pointerPos.y < FIELD.y1;
+    if (inGrid){
+      const pos = snapTile(b.pointerPos);
+      const ok = deployValid(selKey, pos.x, pos.y, 'player') && b.player.elixir >= CARDS[selKey].cost;
+      if (!CARDS[selKey].spell){
+        // highlight the target tile
+        ctx.strokeStyle = ok ? 'rgba(255,255,255,0.9)' : 'rgba(255,125,125,0.9)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(pos.x-TILE/2, pos.y-TILE/2, TILE, TILE);
+      }
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, 13, 0, Math.PI*2);
+      ctx.fillStyle = ok ? 'rgba(255,255,255,0.30)' : 'rgba(230,70,70,0.35)';
+      ctx.fill(); ctx.lineWidth = 2;
+      ctx.strokeStyle = ok ? 'rgba(255,255,255,0.9)' : '#ff7d7d'; ctx.stroke();
     }
-    ctx.beginPath(); ctx.arc(pos.x, pos.y, 13, 0, Math.PI*2);
-    ctx.fillStyle = ok ? 'rgba(255,255,255,0.30)' : 'rgba(230,70,70,0.35)';
-    ctx.fill(); ctx.lineWidth = 2;
-    ctx.strokeStyle = ok ? 'rgba(255,255,255,0.9)' : '#ff7d7d'; ctx.stroke();
   }
 
   // ----- UI layer (canvas pixels, not world coords) -----
@@ -1699,7 +1705,11 @@ window.addEventListener('pointerup', ev => {
   // releasing over the hand, elixir bar, or any UI keeps the card selected
   const under = document.elementFromPoint(ev.clientX, ev.clientY);
   if (under === canvas){
-    tryDeployAt(canvasPos(ev));
+    const p = canvasPos(ev);
+    // and inside the grid area itself — releases on the margin/grass don't place
+    if (p.x > FIELD.x0 && p.x < FIELD.x1 && p.y > FIELD.y0 && p.y < FIELD.y1){
+      tryDeployAt(p);
+    }
   }
 });
 canvas.addEventListener('pointerdown', ev => {
