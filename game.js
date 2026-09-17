@@ -1378,16 +1378,12 @@ window.addEventListener('pointermove', ev => {
 window.addEventListener('pointerup', ev => {
   if (!battle || battle.over) return;
   if (battle.selected < 0) return;
-  const r = canvas.getBoundingClientRect();
-  const inside = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
-  if (inside){
+  // only place if the cursor is actually on the grid (canvas) at release —
+  // releasing over the hand, elixir bar, or any UI keeps the card selected
+  const under = document.elementFromPoint(ev.clientX, ev.clientY);
+  if (under === canvas){
     tryDeployAt(canvasPos(ev));
-  } else if (dragInfo && dragInfo.moved){
-    // drag cancelled (released outside the arena)
-    battle.selected = -1; battle.pointerPos = null; dragInfo = null;
-    updateHandAffordability();
   }
-  // released on the card without dragging -> stay selected for tap-to-place
 });
 canvas.addEventListener('pointerdown', ev => {
   if (!battle || battle.over) return;
