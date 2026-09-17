@@ -114,7 +114,7 @@ img { image-rendering:pixelated; }
 .quit-btn:hover { filter:brightness(1.2); }
 .fs-btn { right:46px; border-color:#2b4a86; background:#1d3f74; font-size:13px; }
 .battle-canvas-wrap { flex:1; display:flex; align-items:center; justify-content:center; min-height:0; position:relative; }
-#gameCanvas { height:100%; width:auto; max-width:100%; aspect-ratio:4/7; background:#0a1a33; }
+#gameCanvas { height:100%; width:auto; max-width:100%; aspect-ratio:22/35; background:#0a1a33; }
 
 .battle-bottom { position:absolute; bottom:0; left:0; right:0; z-index:6; display:flex; flex-direction:column; gap:4px; padding:6px 10px 10px; background:linear-gradient(180deg,rgba(6,12,26,0),rgba(6,12,26,.92) 38%); pointer-events:none; }
 .hand-main, .next-slot, .hand, .elixir-row { pointer-events:auto; }

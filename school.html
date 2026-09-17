@@ -126,7 +126,7 @@ img { image-rendering:pixelated; }
 .quit-btn:hover { filter:brightness(1.2); }
 .fs-btn { right:46px; border-color:#2b4a86; background:#1d3f74; font-size:13px; }
 .battle-canvas-wrap { flex:1; display:flex; align-items:center; justify-content:center; min-height:0; position:relative; }
-#gameCanvas { height:100%; width:auto; max-width:100%; aspect-ratio:4/7; background:#0a1a33; }
+#gameCanvas { height:100%; width:auto; max-width:100%; aspect-ratio:22/35; background:#0a1a33; }
 
 .battle-bottom { position:absolute; bottom:0; left:0; right:0; z-index:6; display:flex; flex-direction:column; gap:4px; padding:6px 10px 10px; background:linear-gradient(180deg,rgba(6,12,26,0),rgba(6,12,26,.92) 38%); pointer-events:none; }
 .hand-main, .next-slot, .hand, .elixir-row { pointer-events:auto; }
@@ -256,7 +256,7 @@ img { image-rendering:pixelated; }
         <button class="quit-btn" id="btnQuit" title="Quit">✕</button>
       </div>
       <div class="battle-canvas-wrap" id="canvasWrap">
-        <canvas id="gameCanvas" width="400" height="700"></canvas>
+        <canvas id="gameCanvas" width="440" height="700"></canvas>
       </div>
       <div class="battle-bottom">
         <div class="hand-main">
@@ -322,8 +322,9 @@ img { image-rendering:pixelated; }
 /* ---------------- constants ---------------- */
 const W = 400, H = 600;             // game coordinates
 const CH = 700;                     // canvas pixel height (extra margin top/bottom)
+const CW = 440;                     // canvas pixel width — a bit wider than the world for desktop
 const VS = CH / H;                  // vertical scale for background fill
-const VXOFF = -(W * VS - W) / 2;    // horizontal offset from uniform scale
+const VXOFF = -(W * VS - CW) / 2;   // horizontal offset from uniform scale
 const RIVER_Y = 260, RIVER_HALF = 14;
 const BRIDGE_L = 95, BRIDGE_R = 305, BRIDGE_HALF = 18;
 const TILE = W / 18;                // CR-style 18-tile-wide grid
@@ -833,6 +834,10 @@ function deployValid(cardKey, x, y, sideKey){
   const card = CARDS[cardKey];
   if (!inField(x,y)) return false;
   if (card.spell) return true;
+  // can't deploy on top of any tower (alive or rubble)
+  for (const t of battle.towers){
+    if (Math.hypot(x - t.x, y - t.y) < t.radius + 15) return false;
+  }
   const side = sideKey === 'player' ? battle.player : battle.enemy;
   if (sideKey === 'player'){
     if (y >= RIVER_Y + 12) return true;
@@ -1115,12 +1120,13 @@ function makeAI(diff){
 function enemyFieldHas(cardKey){
   return battle.units.some(u => u.side==='enemy' && !u.dead && u.cardKey === cardKey);
 }
-function aiSpend(cardKey, x, y){
-  if (!enemyDeploy(cardKey, x, y)) return false;
+function aiSpend(opt, x, y){
+  if (!enemyDeploy(opt.k, x, y)) return false;
   const ai = battle.ai;
   // after playing a card, it's locked until the AI has played 4 more cards
-  ai.lock[cardKey] = 4;
-  for (const k in ai.lock){ if (k !== cardKey && ai.lock[k] > 0) ai.lock[k]--; }
+  ai.lock[opt.k] = 4;
+  for (const k in ai.lock){ if (k !== opt.k && ai.lock[k] > 0) ai.lock[k]--; }
+  cycleCard(battle.enemy, opt.i);   // draw the next card from its deck like the player does
   return true;
 }
 
@@ -1152,7 +1158,7 @@ function aiThink(dt){
         const value = g.units.reduce((s,u)=>s+ (u.hp + u.dmg*8), 0);
         if (g.units.length >= 3 || (c.spellIQ >= 2 && value > 900)) { target = g; break; }
       }
-      if (target){ aiSpend(sp.k, target.x, target.y); return; }
+      if (target){ aiSpend(sp, target.x, target.y); return; }
     }
   }
 
@@ -1175,21 +1181,26 @@ function aiThink(dt){
       const tw = towers[0];
       const px = tw ? tw.x + Math.sign(th.x - tw.x || 1)*24 : th.x;
       const py = tw ? Math.max(148, Math.min(240, tw.y + 48)) : Math.max(150, Math.min(230, th.y - 30));
-      if (deployValid(pick.k, px, py, 'enemy')){ aiSpend(pick.k, px, py); return; }
-      if (deployValid(pick.k, th.x, 200, 'enemy')){ aiSpend(pick.k, th.x, 200); return; }
+      if (deployValid(pick.k, px, py, 'enemy')){ aiSpend(pick, px, py); return; }
+      if (deployValid(pick.k, th.x, 200, 'enemy')){ aiSpend(pick, th.x, 200); return; }
     }
     return; // defending — save remaining elixir, no simultaneous push
   }
 
   // player has nothing down (or defense roll skipped): attack
-  const wantsPush = e.elixir >= c.pushElixir ||
+  // if the AI lost a princess tower it counter-pushes sooner instead of giving up
+  const lostPrincess = b.towers.some(t => t.side==='enemy' && t.kind==='princess' && t.dead);
+  const pushNeed = lostPrincess ? Math.max(4, c.pushElixir - 3) : c.pushElixir;
+  const wantsPush = e.elixir >= pushNeed ||
     (affordable.some(o=>o.k==='golem'||o.k==='giant') && e.elixir >= CARDS.giant.cost + 2);
   if (wantsPush){
     const tank = affordable.find(o => o.k==='golem') || affordable.find(o => o.k==='giant');
-    const lane = Math.random() < 0.5 ? BRIDGE_L : BRIDGE_R;
-    if (tank){ aiSpend(tank.k, lane + (Math.random()*24-12), 190 + Math.random()*30); return; }
+    const lane = lostPrincess
+      ? (b.towers[1].dead ? BRIDGE_L : (b.towers[2].dead ? BRIDGE_R : (Math.random()<0.5?BRIDGE_L:BRIDGE_R)))
+      : (Math.random() < 0.5 ? BRIDGE_L : BRIDGE_R);
+    if (tank){ aiSpend(tank, lane + (Math.random()*24-12), 190 + Math.random()*30); return; }
     const troop = affordable.filter(o=>!o.c.spell)[0];
-    if (troop){ aiSpend(troop.k, lane + (Math.random()*40-20), 205); return; }
+    if (troop){ aiSpend(troop, lane + (Math.random()*40-20), 205); return; }
   }
   // otherwise bank elixir like a real player — no free dumps
 }
@@ -1371,8 +1382,8 @@ function snapTile(p){
 function draw(){
   const b = battle;
   ctx.setTransform(1,0,0,1,0,0);
-  ctx.clearRect(0,0,W,CH);
-  ctx.fillStyle = '#0a1a33'; ctx.fillRect(0,0,W,CH);
+  ctx.clearRect(0,0,CW,CH);
+  ctx.fillStyle = '#0a1a33'; ctx.fillRect(0,0,CW,CH);
   // world transform: uniform scale to fill canvas height, crop sides
   ctx.setTransform(VS,0,0,VS,VXOFF,0);
   ctx.drawImage(IMG.bgGame, 0, 0, W, H);
@@ -1425,26 +1436,6 @@ function draw(){
     }
   }
 
-  // towers (dead first for layering) — blue for player, red for enemy
-  const towersSorted = b.towers.slice().sort((a,c)=>(a.dead?0:1)-(c.dead?0:1));
-  for (const t of towersSorted){
-    if (t.dead){
-      const rh = t.kind==='king' ? 48 : 41, rw = 60;
-      if (IMG.towerDestroyed) ctx.drawImage(IMG.towerDestroyed, t.x-rw/2, t.y-rh/2, rw, rh);
-      continue;
-    }
-    const upKey = (t.kind==='king' ? 'towerUpKing' : 'towerUpPrincess') + (t.side==='player' ? 'Blue' : '');
-    ctx.drawImage(IMG[upKey], t.x-30, t.y-30, 60, t.kind==='king'?63:51);
-    drawBar(t.x, t.y - (t.kind==='king'?38:34), 30, t.hp/t.maxHp, t.side);
-    // tower HP number
-    ctx.font = 'bold 9px Trebuchet MS, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-    const hpTxt = String(Math.max(0, Math.ceil(t.hp)));
-    const numY = t.y - (t.kind==='king'?44:40);
-    ctx.strokeText(hpTxt, t.x, numY); ctx.fillText(hpTxt, t.x, numY);
-  }
-
   // units
   const units = b.units.slice().sort((a,c)=>a.y-c.y);
   for (const u of units){
@@ -1494,6 +1485,26 @@ function draw(){
       ctx.globalAlpha = 1;
     }
     if (u.hp < u.maxHp) drawBar(u.x, u.y - dh/2 - 8, Math.max(20, dw*0.55), u.hp/u.maxHp, u.side);
+  }
+
+  // towers on a layer ABOVE units so sprites never overlap them
+  const towersSorted = b.towers.slice().sort((a,c)=>(a.dead?0:1)-(c.dead?0:1));
+  for (const t of towersSorted){
+    if (t.dead){
+      const rh = t.kind==='king' ? 48 : 41, rw = 60;
+      if (IMG.towerDestroyed) ctx.drawImage(IMG.towerDestroyed, t.x-rw/2, t.y-rh/2, rw, rh);
+      continue;
+    }
+    const upKey = (t.kind==='king' ? 'towerUpKing' : 'towerUpPrincess') + (t.side==='player' ? 'Blue' : '');
+    ctx.drawImage(IMG[upKey], t.x-30, t.y-30, 60, t.kind==='king'?63:51);
+    drawBar(t.x, t.y - (t.kind==='king'?38:34), 30, t.hp/t.maxHp, t.side);
+    // tower HP number
+    ctx.font = 'bold 9px Trebuchet MS, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    const hpTxt = String(Math.max(0, Math.ceil(t.hp)));
+    const numY = t.y - (t.kind==='king'?44:40);
+    ctx.strokeText(hpTxt, t.x, numY); ctx.fillText(hpTxt, t.x, numY);
   }
 
   // projectiles
@@ -1583,7 +1594,7 @@ function draw(){
   if (b.doubleBannerT > 0 && IMG.doubleElixir){
     const a = Math.min(1, b.doubleBannerT/0.5);
     ctx.globalAlpha = a;
-    ctx.drawImage(IMG.doubleElixir, W/2-110, 240, 220, 220*IMG.doubleElixir.height/IMG.doubleElixir.width);
+    ctx.drawImage(IMG.doubleElixir, CW/2-110, 240, 220, 220*IMG.doubleElixir.height/IMG.doubleElixir.width);
     ctx.globalAlpha = 1;
   }
 
@@ -1598,9 +1609,9 @@ function draw(){
       ctx.textAlign='center';
       const w = ctx.measureText(bn.text).width + 28;
       ctx.fillStyle = 'rgba(8,14,30,0.82)';
-      roundRect(W/2-w/2, 310, w, 30, 15); ctx.fill();
-      ctx.strokeStyle = bn.color; ctx.lineWidth = 1.5; roundRect(W/2-w/2, 310, w, 30, 15); ctx.stroke();
-      ctx.fillStyle = bn.color; ctx.fillText(bn.text, W/2, 330);
+      roundRect(CW/2-w/2, 310, w, 30, 15); ctx.fill();
+      ctx.strokeStyle = bn.color; ctx.lineWidth = 1.5; roundRect(CW/2-w/2, 310, w, 30, 15); ctx.stroke();
+      ctx.fillStyle = bn.color; ctx.fillText(bn.text, CW/2, 330);
       ctx.globalAlpha = 1;
     }
   }
@@ -1645,7 +1656,7 @@ function updateHandAffordability(){
 /* ---------------- input ---------------- */
 function canvasPos(ev){
   const r = canvas.getBoundingClientRect();
-  const cx = (ev.clientX - r.left) / r.width * W;     // canvas px
+  const cx = (ev.clientX - r.left) / r.width * CW;     // canvas px
   const cy = (ev.clientY - r.top) / r.height * CH;
   return { x: (cx - VXOFF) / VS, y: cy / VS };        // invert world transform
 }
