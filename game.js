@@ -1371,9 +1371,10 @@ window.addEventListener('pointermove', ev => {
   if (!battle || battle.over) return;
   if (battle.selected < 0) return;
   if (dragInfo && (Math.abs(ev.clientX-dragInfo.x0) > 10 || Math.abs(ev.clientY-dragInfo.y0) > 10)) dragInfo.moved = true;
-  const r = canvas.getBoundingClientRect();
-  const inside = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
-  battle.pointerPos = inside ? canvasPos(ev) : null;
+  // ghost preview only follows the cursor when it is truly over the grid,
+  // not over the hand / elixir bar / UI that sit on top of the canvas
+  const under = document.elementFromPoint(ev.clientX, ev.clientY);
+  battle.pointerPos = (under === canvas) ? canvasPos(ev) : null;
 });
 window.addEventListener('pointerup', ev => {
   if (!battle || battle.over) return;
