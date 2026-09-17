@@ -19,12 +19,12 @@ const IMGDIR = 'assets/img/';
 /* ---------------- card definitions ---------------- */
 const CARDS = {
   knight:      { key:'knight',      label:'Knight',       cost:3, count:1, hp:1766, dmg:202,  hitSpeed:1.2, range:18, speed:38, radius:9,  sprite:'Knight',      targets:'ground' },
-  archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:56, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
-  skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:81,   dmg:81,   hitSpeed:1.1, range:14, speed:55, radius:6,  sprite:'Skeleton',    targets:'ground' },
+  archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:42, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
+  skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:81,   dmg:81,   hitSpeed:1.1, range:14, speed:49, radius:6,  sprite:'Skeleton',    targets:'ground' },
   giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:4090, dmg:253,  hitSpeed:1.5, range:20, speed:22, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
-  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1390, dmg:755, hitSpeed:1.6, range:16, speed:50, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
-  babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:1152, dmg:161,  hitSpeed:1.5, range:88, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
-  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:56, speed:63, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
+  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1390, dmg:755, hitSpeed:1.6, range:16, speed:45, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
+  babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:1152, dmg:161,  hitSpeed:1.5, range:42, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
+  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:42, speed:57, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
   golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:5120, dmg:312,  hitSpeed:2.5, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:1039, dmg:84, hitSpeed:2.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
   cannon:      { key:'cannon',      label:'Cannon',       cost:3, count:1, hp:824,  dmg:212,  hitSpeed:0.9, range:122, speed:0, radius:11, building:true, sprite:'Cannon', targets:'ground', lifetime:30, projectile:'canonball' },
   fireball:    { key:'fireball',    label:'Fireball',     cost:4, spell:true, dmg:688, radius:42, towerFactor:0.4 },
@@ -154,6 +154,7 @@ async function loadAllAssets(){
     ['endVictory','EndVictory.png'],['endDefeat','EndDefeat.png'],['endDraw','EndDraw.png'],
     ['doubleElixir','TextDoubleElixir.png'],['cardNext','CardNext.png'],
     ['circleFireball','CircleFireball.png'],['circlePoison','CirclePoison.png'],
+    ['towerDestroyed','TowerDestroyed.png'],['crown','Crown.png'],
   ];
   for (let s = 0; s <= 3; s++) single.push(['score'+s, `Score${s}.png`]);
   const step = (from, to) => {
@@ -198,7 +199,7 @@ const $ = id => document.getElementById(id);
 const ui = {};
 ['loadBar','loadStep','screen-intro','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result',
  'introVideo','introArt',
- 'deckGrid','deckSlots','deckCount','handRow','nextCard','elixirFill','elixirNum','gameCanvas','canvasWrap','timerLabel','phaseLabel',
+ 'deckGrid','deckSlots','deckCount','handRow','nextCard','elixirBar','elixirFill','elixirNum','gameCanvas','canvasWrap','timerLabel','phaseLabel',
  'playerCrowns','enemyCrowns','resultImg','resultCrowns','howModal','pauseModal','toastRoot'].forEach(id => ui[id.replace(/-(\w)/g,(m,c)=>c.toUpperCase())] = $(id));
 
 function showScreen(id){
@@ -306,12 +307,11 @@ function wireDeckScroll(){
   grid.addEventListener('pointerdown', ev => {
     if (ev.pointerType !== 'mouse') return;
     drag = { y0: ev.clientY, top0: grid.scrollTop, moved: false, id: ev.pointerId };
-    grid.classList.add('dragging');
   });
   window.addEventListener('pointermove', ev => {
     if (!drag || ev.pointerId !== drag.id) return;
     const dy = ev.clientY - drag.y0;
-    if (Math.abs(dy) > 6) drag.moved = true;
+    if (!drag.moved && Math.abs(dy) > 6){ drag.moved = true; grid.classList.add('dragging'); }
     grid.scrollTop = drag.top0 - dy;
   });
   window.addEventListener('pointerup', ev => {
@@ -356,7 +356,7 @@ function makeTower(side, kind, x, y, lane){
     maxHp: kind==='king' ? 5593 : 3052,
     dmg: kind==='king' ? 335 : 109,
     hitSpeed: kind==='king' ? 1.0 : 0.8,
-    range: kind==='king' ? 112 : 100,
+    range: 44,
     radius: kind==='king' ? 21 : 17,
     active: kind!=='king',
     cd: 0, dead: false,
@@ -650,6 +650,10 @@ function destroyTower(t){
     defender.princessDead[t.lane] = true;
   }
   battle.banners.push({ text: t.side === 'enemy' ? 'ENEMY TOWER DESTROYED!' : 'YOUR TOWER DESTROYED!', t:0, dur:2.2, color: t.side === 'enemy' ? '#8ee6ff' : '#ff8080' });
+  // fire explosion at the fallen tower + crown popup
+  const frS = FRAMES.SpellFireball;
+  if (frS && frS.attack.length) battle.effects.push({ type:'explosion', x:t.x, y:t.y-8, t:0, dur: Math.max(0.5, frS.attack.length/14) });
+  battle.effects.push({ type:'crown', x:t.x, y:t.y-40, t:0, dur:1.4 });
   SFX.towerDown();
   // sudden death: first crown wins
   if (battle.overtime && (battle.player.crowns !== battle.enemy.crowns)) endBattle();
@@ -838,7 +842,7 @@ function updateBattle(dt){
         if (d < bestD && d <= t.range){ best = u; bestD = d; }
       }
       if (best){
-        b.projectiles.push({ type:'unit', x:t.x, y:t.y-14, target:best, side:t.side, speed:300, dmg:t.dmg, splash:0, sprite:'pjArrow' });
+        b.projectiles.push({ type:'unit', x:t.x, y:t.y-14, target:best, side:t.side, speed:300, dmg:t.dmg, splash:0, sprite: t.kind==='king' ? 'pjCanonball' : 'pjArrow' });
         t.cd = t.hitSpeed;
       }
     }
@@ -919,7 +923,14 @@ function updateBattle(dt){
 function endBattle(){
   if (battle.over) return;
   battle.over = true;
-  const p = battle.player.crowns, e = battle.enemy.crowns;
+  let p = battle.player.crowns, e = battle.enemy.crowns;
+  if (p === e){
+    // real CR tiebreaker: the side whose weakest tower has the lowest HP% loses
+    const minPct = side => Math.min(...battle.towers.filter(t => t.side === side).map(t => t.hp / t.maxHp));
+    const mp = minPct('player'), me = minPct('enemy');
+    if (mp < me){ p = 0; e = 1; battle.banners.push({ text:'LOWEST TOWER HP LOSES!', t:0, dur:2.0, color:'#ffd45a' }); }
+    else if (me < mp){ p = 1; e = 0; battle.banners.push({ text:'LOWEST TOWER HP LOSES!', t:0, dur:2.0, color:'#ffd45a' }); }
+  }
   battle.finalResult = p > e ? 'victory' : (p < e ? 'defeat' : 'draw');
   setTimeout(showResult, 900);
 }
@@ -1005,13 +1016,28 @@ function draw(){
   const towersSorted = b.towers.slice().sort((a,c)=>(a.dead?0:1)-(c.dead?0:1));
   for (const t of towersSorted){
     if (t.dead){
-      const key = t.kind==='king' ? 'towerDownKing' : 'towerDownPrincess';
-      ctx.drawImage(IMG[key], t.x-30, t.y-30, 60, t.kind==='king'?63:51);
+      const rh = t.kind==='king' ? 48 : 41, rw = 60;
+      if (IMG.towerDestroyed) ctx.drawImage(IMG.towerDestroyed, t.x-rw/2, t.y-rh/2, rw, rh);
+      // burning fire on the rubble
+      const frS = FRAMES.SpellFireball;
+      if (frS && frS.attack.length){
+        const fi = Math.floor(performance.now()/1000*10) % frS.attack.length;
+        ctx.globalAlpha = 0.85;
+        ctx.drawImage(frS.attack[fi], t.x-16, t.y-rh/2-10, 32, 32);
+        ctx.globalAlpha = 1;
+      }
       continue;
     }
     const upKey = (t.kind==='king' ? 'towerUpKing' : 'towerUpPrincess') + (t.side==='player' ? 'Blue' : '');
     ctx.drawImage(IMG[upKey], t.x-30, t.y-30, 60, t.kind==='king'?63:51);
     drawBar(t.x, t.y - (t.kind==='king'?38:34), 30, t.hp/t.maxHp, t.side);
+    // tower HP number
+    ctx.font = 'bold 9px Trebuchet MS, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    const hpTxt = String(Math.max(0, Math.ceil(t.hp)));
+    const numY = t.y - (t.kind==='king'?44:40);
+    ctx.strokeText(hpTxt, t.x, numY); ctx.fillText(hpTxt, t.x, numY);
   }
 
   // units
@@ -1101,6 +1127,14 @@ function draw(){
         const fi = Math.min(fr.attack.length-1, Math.floor(e.t/e.dur * fr.attack.length));
         ctx.drawImage(fr.attack[fi], e.x-40, e.y-40, 80, 80);
       }
+    } else if (e.type === 'crown'){
+      if (IMG.crown){
+        const pr = Math.min(1, e.t/e.dur);
+        const cw = 26;
+        ctx.globalAlpha = 1 - pr;
+        ctx.drawImage(IMG.crown, e.x-cw/2, e.y - pr*34 - cw/2, cw, cw*IMG.crown.height/IMG.crown.width);
+        ctx.globalAlpha = 1;
+      }
     }
   }
 
@@ -1183,6 +1217,7 @@ function updateHandAffordability(){
   });
   ui.elixirFill.style.width = (battle.player.elixir/ELIXIR_MAX*100)+'%';
   ui.elixirNum.textContent = Math.floor(battle.player.elixir);
+  ui.elixirBar.classList.toggle('full', battle.player.elixir >= ELIXIR_MAX - 0.01);
 }
 
 /* ---------------- input ---------------- */
@@ -1317,6 +1352,7 @@ function wireUI(){
   $('btnResume').addEventListener('click', () => ui.pauseModal.classList.add('hidden'));
   $('btnQuitConfirm').addEventListener('click', () => {
     ui.pauseModal.classList.add('hidden');
+    SFX.stopBattle();
     battle = null; showScreen('screen-menu'); SFX.music();
   });
   $('btnAgain').addEventListener('click', () => startBattle());

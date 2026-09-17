@@ -118,10 +118,17 @@ img { image-rendering:pixelated; }
 .hand-card.shake { animation:shake .3s; }
 @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
 .elixir-row { display:flex; align-items:center; gap:5px; padding:0 4px; }
-.elixir-drop { height:30px; }
 .elixir-bar { position:relative; flex:1; height:22px; border-radius:11px; background:#1c0f2e; border:2px solid #4a2a6e; overflow:hidden; }
-.elixir-fill { position:absolute; inset:0; width:50%; background:linear-gradient(180deg,#f06ef0,#c030c0 60%,#9020a0); transition:width .12s linear; }
+.elixir-fill { position:absolute; inset:0; width:50%; background:url('assets/img/ElixirBarShape.png') center/cover no-repeat; transition:width .12s linear; }
+.elixir-bar::after { content:''; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 2px), rgba(20,4,30,.55) calc(10% - 2px), rgba(20,4,30,.55) 10%); }
 .elixir-num { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:bold; text-shadow:0 1px 3px #000; }
+.elixir-bar.full { animation:elixirPulse .45s ease-in-out infinite; }
+@keyframes elixirPulse {
+  0%,100% { transform:translateX(0); box-shadow:0 0 6px 1px rgba(240,110,240,.7); }
+  25% { transform:translateX(-2px); box-shadow:0 0 12px 3px rgba(240,110,240,.95); }
+  75% { transform:translateX(2px); box-shadow:0 0 12px 3px rgba(240,110,240,.95); }
+}
 
 /* ---------- RESULT ---------- */
 .result-inner { display:flex; flex-direction:column; align-items:center; gap:16px; }
