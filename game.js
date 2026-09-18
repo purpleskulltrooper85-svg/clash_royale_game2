@@ -218,7 +218,7 @@ const ui = {};
 ['loadBar','loadStep','screen-intro','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result',
  'introVideo','introArt',
  'deckGrid','deckSlots','deckCount','handRow','nextCard','elixirBar','elixirFill','elixirNum','gameCanvas','canvasWrap','timerLabel','phaseLabel',
- 'playerCrowns','enemyCrowns','resultImg','resultCrowns','resultTrophies','arenaInfo','howModal','pauseModal','toastRoot'].forEach(id => ui[id.replace(/-(\w)/g,(m,c)=>c.toUpperCase())] = $(id));
+ 'playerCrowns','enemyCrowns','resultImg','resultCrowns','resultTrophies','arenaInfo','arenaModal','arenaModalCard','howModal','pauseModal','toastRoot'].forEach(id => ui[id.replace(/-(\w)/g,(m,c)=>c.toUpperCase())] = $(id));
 
 function showScreen(id){
   ['screen-intro','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result']
@@ -226,12 +226,40 @@ function showScreen(id){
   if (id === 'screen-menu') updateArenaInfo();
 }
 function updateArenaInfo(){
-  const a = ARENAS[arenaIndex()];
-  const next = ARENAS[arenaIndex()+1];
+  const idx = arenaIndex();
+  const a = ARENAS[idx];
+  const next = ARENAS[idx+1];
   ui.arenaInfo.innerHTML =
-    `<img src="${IMG['arena'+(arenaIndex()+1)].src}" alt=""><div class="arena-txt">` +
-    `<b>${a.name}</b><span>🏆 ${G.trophies}` +
-    (next ? ` · ${next.min - G.trophies} to ${next.name}` : ` · MAX ARENA`) + `</span></div>`;
+    `<div class="arena-frame" id="arenaFrame" title="View arenas">` +
+      `<img src="${IMG['arena'+(idx+1)].src}" alt="${a.name}">` +
+      `<div class="arena-trophy">🏆 ${G.trophies}</div>` +
+      `<div class="arena-name">Arena ${idx+1} — ${a.name}</div>` +
+    `</div>` +
+    (next ? `<div class="arena-progress"><div class="arena-progress-fill" style="width:${Math.min(100, Math.round(100*(G.trophies-a.min)/(next.min-a.min)))}%"></div></div>` : '');
+  $('arenaFrame').addEventListener('click', openArenaModal);
+}
+function openArenaModal(){
+  const idx = arenaIndex();
+  let html = `<h3 class="arena-modal-title">${ARENAS[idx].name}</h3><div class="arena-track">`;
+  // list from highest arena down, like real CR arena progression
+  for (let i = ARENAS.length-1; i >= 0; i--){
+    const a = ARENAS[i];
+    const prev = ARENAS[i-1];
+    const unlocks = ALL_CARD_KEYS.filter(k => CARDS[k].unlockTrophies !== undefined &&
+      CARDS[k].unlockTrophies <= a.min && (prev === undefined || CARDS[k].unlockTrophies > prev.min));
+    const locked = G.trophies < a.min;
+    html += `<div class="arena-row${i === idx ? ' current' : ''}${locked ? ' locked' : ''}">` +
+      `<div class="arena-row-img"><img src="${IMG['arena'+(i+1)].src}" alt="${a.name}"></div>` +
+      `<div class="arena-row-body">` +
+        `<div class="arena-row-name">Arena ${i+1} — ${a.name}</div>` +
+        `<div class="arena-row-req">${locked ? '🔒 Unlocks at ' : '🏆 '}${a.min} trophies</div>` +
+        (unlocks.length ? `<div class="arena-row-unlocks">Card unlocks: ${unlocks.map(k => `<img class="unlock-card" src="${IMG['card_'+k].src}" alt="${CARDS[k].label}" title="${CARDS[k].label}">`).join('')}</div>` : '') +
+      `</div></div>`;
+  }
+  html += `</div><button class="img-btn small" id="btnArenaClose">OK</button>`;
+  ui.arenaModalCard.innerHTML = html;
+  ui.arenaModal.classList.remove('hidden');
+  $('btnArenaClose').addEventListener('click', () => ui.arenaModal.classList.add('hidden'));
 }
 function toast(msg){
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
@@ -475,7 +503,9 @@ function startBattle(){
   t.push(makeTower('player','king',200,406));
   t.push(makeTower('player','princess',95,378,'L'));
   t.push(makeTower('player','princess',305,378,'R'));
-  battle.ai = makeAI(G.difficulty);
+  // AI difficulty rises with the arena (training camp = easy, higher arenas = harder)
+  const arenaDiff = ['easy','medium','hard','hard'][Math.min(3, arenaIndex())];
+  battle.ai = makeAI(arenaDiff, arenaIndex());
   showScreen('screen-battle');
   renderHand();
   SFX.beep();
@@ -825,12 +855,19 @@ function areaDamage(fromSide, x, y, radius, dmg, towerFactor){
 }
 
 /* ---------------- AI ---------------- */
-function makeAI(diff){
+function makeAI(diff, arena){
   const cfg = {
     easy:   { interval:[2.4,3.6], skipChance:0.45, defendChance:0.8,  spellIQ:0, pushElixir:8, defendElixir:0 },
     medium: { interval:[1.6,2.6], skipChance:0.2,  defendChance:1.0,  spellIQ:1, pushElixir:7, defendElixir:0 },
     hard:   { interval:[0.9,1.7], skipChance:0.05, defendChance:1.0,  spellIQ:2, pushElixir:6, defendElixir:0 },
   }[diff];
+  // each arena makes the AI faster, less wasteful and more aggressive
+  const a = Math.max(0, Math.min(4, arena || 0));
+  cfg.interval = [cfg.interval[0]*(1-0.07*a), cfg.interval[1]*(1-0.07*a)];
+  cfg.skipChance = Math.max(0, cfg.skipChance - 0.05*a);
+  cfg.pushElixir = Math.max(4, cfg.pushElixir - a);
+  cfg.spellIQ = Math.min(2, cfg.spellIQ + (a >= 2 ? 1 : 0));
+  cfg.defendChance = Math.min(1, cfg.defendChance + 0.05*a);
   return { cfg, timer: 2.5, lock: {} };
 }
 
@@ -1111,15 +1148,8 @@ function draw(){
   ctx.fillStyle = '#0a1a33'; ctx.fillRect(0,0,CW,CH);
   // world transform: uniform scale to fill canvas height, crop sides
   ctx.setTransform(VS,0,0,VS,VXOFF,0);
-  // arena background by trophy progress (cover-crop the square arena art)
-  const arenaImg = IMG['arena' + (arenaIndex()+1)] || IMG.bgGame;
-  if (arenaImg){
-    const wa = W / H;
-    let sx = 0, sy = 0, sw = arenaImg.width, sh = arenaImg.height;
-    if (sw/sh > wa){ sw = sh * wa; sx = (arenaImg.width - sw)/2; }
-    else { sh = sw / wa; sy = (arenaImg.height - sh)/2; }
-    ctx.drawImage(arenaImg, sx, sy, sw, sh, 0, 0, W, H);
-  } else ctx.drawImage(IMG.bgGame, 0, 0, W, H);
+  // battle arena stays the classic grass field — arena art is menu-only
+  ctx.drawImage(IMG.bgGame, 0, 0, W, H);
 
   // deploy zone overlay while dragging
   const selKey = (b.selected >= 0) ? b.player.hand[b.selected] : null;
@@ -1490,7 +1520,7 @@ function wireUI(){
   ui.screenTitle.addEventListener('click', () => { showScreen('screen-menu'); SFX.beep(); });
   $('btnBattle').addEventListener('click', () => {
     if (G.deck.length !== 8){ renderDeckScreen(); showScreen('screen-deck'); toast('Choose 8 cards first!'); return; }
-    showScreen('screen-difficulty');
+    startBattle();   // straight into the match — arena decides the AI difficulty
   });
   $('btnDeck').addEventListener('click', () => { renderDeckScreen(); showScreen('screen-deck'); });
   $('btnHow').addEventListener('click', () => ui.howModal.classList.remove('hidden'));
