@@ -30,8 +30,18 @@ const CARDS = {
   cannon:      { key:'cannon',      label:'Cannon',       cost:3, count:1, hp:824,  dmg:212,  hitSpeed:0.9, range:122, speed:0, radius:11, building:true, sprite:'Cannon', targets:'ground', lifetime:30, projectile:'canonball' },
   fireball:    { key:'fireball',    label:'Fireball',     cost:4, spell:true, dmg:688, radius:42, towerFactor:0.4 },
   poison:      { key:'poison',      label:'Poison',       cost:4, spell:true, dps:92, duration:8, radius:45, towerFactor:0.4 },
+  skeletonarmy:{ key:'skeletonarmy',label:'Skeleton Army',cost:3, count:16, hp:81, dmg:81, hitSpeed:1.1, range:14, speed:49, radius:6, sprite:'Skeleton', targets:'ground', unlockTrophies:200 },
 };
-const ALL_CARD_KEYS = ['knight','archers','skeletons','giant','minipekka','babydragon','speargoblins','golem','cannon','fireball','poison'];
+
+/* Arenas: trophy thresholds unlock each arena's look; higher arenas unlock cards */
+const ARENAS = [
+  { name:'Training Camp',      min:0,   img:'Arena1.png' },
+  { name:'Bone Pit',           min:100, img:'Arena2.png' },
+  { name:'Barbarian Bowl',     min:200, img:'Arena3.png' },
+  { name:"Builder's Workshop", min:300, img:'Arena4.png' },
+];
+function arenaIndex(){ let i = 0; ARENAS.forEach((a,j) => { if (G.trophies >= a.min) i = j; }); return i; }
+const ALL_CARD_KEYS = ['knight','archers','skeletons','giant','minipekka','babydragon','speargoblins','golem','cannon','fireball','poison','skeletonarmy'];
 const DEFAULT_DECK = ['knight','archers','skeletons','giant','minipekka','babydragon','speargoblins','fireball'];
 
 /* ---------------- sound ---------------- */
@@ -162,6 +172,7 @@ async function loadAllAssets(){
     ['doubleElixir','TextDoubleElixir.png'],['cardNext','CardNext.png'],
     ['circleFireball','CircleFireball.png'],['circlePoison','CirclePoison.png'],
     ['towerDestroyed','TowerDestroyed.png'],['crown','Crown.png'],
+    ['arena1','Arena1.png'],['arena2','Arena2.png'],['arena3','Arena3.png'],['arena4','Arena4.png'],
   ];
   for (let s = 0; s <= 3; s++) single.push(['score'+s, `Score${s}.png`]);
   const step = (from, to) => {
@@ -175,7 +186,7 @@ async function loadAllAssets(){
   // phase 1: single images (0-35%)
   await Promise.all(single.map(([k,f]) => phase(0,35)(loadImg(k, IMGDIR+f))));
   // phase 2: card images (35-50%)
-  const cardName = {archers:'Archer',babydragon:'DragonBaby',fireball:'Fireball',giant:'Giant',speargoblins:'GoblinSpear',golem:'Golem',knight:'Knight',minipekka:'PekkaMini',poison:'Poison',skeletons:'Skeleton',cannon:'Cannon'};
+  const cardName = {archers:'Archer',babydragon:'DragonBaby',fireball:'Fireball',giant:'Giant',speargoblins:'GoblinSpear',golem:'Golem',knight:'Knight',minipekka:'PekkaMini',poison:'Poison',skeletons:'Skeleton',cannon:'Cannon',skeletonarmy:'SkeletonArmy'};
   await Promise.all(ALL_CARD_KEYS.map(k => phase(35,50)(loadImg('card_'+k, IMGDIR+'Card'+cardName[k]+'.png'))));
   // phase 3: spell animations (50-60%)
   {
@@ -207,11 +218,20 @@ const ui = {};
 ['loadBar','loadStep','screen-intro','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result',
  'introVideo','introArt',
  'deckGrid','deckSlots','deckCount','handRow','nextCard','elixirBar','elixirFill','elixirNum','gameCanvas','canvasWrap','timerLabel','phaseLabel',
- 'playerCrowns','enemyCrowns','resultImg','resultCrowns','howModal','pauseModal','toastRoot'].forEach(id => ui[id.replace(/-(\w)/g,(m,c)=>c.toUpperCase())] = $(id));
+ 'playerCrowns','enemyCrowns','resultImg','resultCrowns','resultTrophies','arenaInfo','howModal','pauseModal','toastRoot'].forEach(id => ui[id.replace(/-(\w)/g,(m,c)=>c.toUpperCase())] = $(id));
 
 function showScreen(id){
   ['screen-intro','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result']
     .forEach(s => ui[s.replace(/-(\w)/g,(m,c)=>c.toUpperCase())].classList.toggle('hidden', s !== id));
+  if (id === 'screen-menu') updateArenaInfo();
+}
+function updateArenaInfo(){
+  const a = ARENAS[arenaIndex()];
+  const next = ARENAS[arenaIndex()+1];
+  ui.arenaInfo.innerHTML =
+    `<img src="${IMG['arena'+(arenaIndex()+1)].src}" alt=""><div class="arena-txt">` +
+    `<b>${a.name}</b><span>🏆 ${G.trophies}` +
+    (next ? ` · ${next.min - G.trophies} to ${next.name}` : ` · MAX ARENA`) + `</span></div>`;
 }
 function toast(msg){
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
@@ -223,7 +243,9 @@ const G = {
   screenState: 'menu',
   difficulty: localStorage.getItem('tcr_diff') || 'medium',
   deck: JSON.parse(localStorage.getItem('tcr_deck') || 'null') || DEFAULT_DECK.slice(),
+  trophies: parseInt(localStorage.getItem('tcr_trophies') || '0', 10) || 0,
 };
+function saveTrophies(){ localStorage.setItem('tcr_trophies', String(G.trophies)); }
 
 /* ================= DECK BUILDER ================= */
 function renderDeckScreen(){
@@ -245,10 +267,13 @@ function renderDeckScreen(){
   ui.deckGrid.innerHTML = '';
   ALL_CARD_KEYS.forEach(k => {
     const c = CARDS[k];
+    const locked = c.unlockTrophies && G.trophies < c.unlockTrophies;
     const el = document.createElement('div');
-    el.className = 'deck-card' + (G.deck.includes(k) ? ' selected' : '');
+    el.className = 'deck-card' + (G.deck.includes(k) ? ' selected' : '') + (locked ? ' locked' : '');
     el.dataset.key = k;
-    el.innerHTML = `<img draggable="false" src="${IMG['card_'+k].src}" alt="${c.label}"><span class="cost-badge">${c.cost}</span><span class="card-name">${c.label}</span>`;
+    el.innerHTML = `<img draggable="false" src="${IMG['card_'+k].src}" alt="${c.label}"><span class="cost-badge">${c.cost}</span><span class="card-name">${c.label}</span>` +
+      (locked ? `<span class="lock-badge">🔒 ${c.unlockTrophies} trophies</span>` : '');
+    if (locked) return;   // locked: shown greyed, not clickable
     el.addEventListener('click', () => {
       if (dragScroll.moved) return;   // ignore click at end of a scroll drag
       const i = G.deck.indexOf(k);
@@ -464,7 +489,15 @@ function spawnUnit(sideKey, card, x, y, isSpawnChild){
   const n = isSpawnChild ? 1 : card.count;
   if (n === 1) offsets.push([0,0]);
   else if (n === 2) offsets.push([-11,0],[11,0]);
-  else offsets.push([0,-10],[-11,8],[11,8]);
+  else if (n === 3) offsets.push([0,-10],[-11,8],[11,8]);
+  else {
+    // grid formation for big groups (skeleton army etc.)
+    const cols = 4, sp = 13, rows = Math.ceil(n / cols);
+    for (let i = 0; i < n; i++){
+      const col = i % cols, row = (i / cols) | 0;
+      offsets.push([(col - (cols-1)/2) * sp, (row - (rows-1)/2) * sp]);
+    }
+  }
   const made = [];
   offsets.forEach(o => {
     const u = {
@@ -1041,6 +1074,14 @@ function showResult(){
   const r = battle.finalResult;
   ui.resultImg.src = IMG[r === 'victory' ? 'endVictory' : r === 'defeat' ? 'endDefeat' : 'endDraw'].src;
   ui.resultCrowns.textContent = `Crowns  ${battle.player.crowns} — ${battle.enemy.crowns}`;
+  // trophies: win +30, draw +5, loss -15 (never below 0)
+  const delta = r === 'victory' ? 30 : r === 'defeat' ? -15 : 5;
+  const beforeArena = arenaIndex();
+  G.trophies = Math.max(0, G.trophies + delta);
+  saveTrophies();
+  const sign = delta >= 0 ? '+' : '';
+  const newArena = arenaIndex() > beforeArena ? `  •  NEW ARENA: ${ARENAS[arenaIndex()].name}!` : '';
+  ui.resultTrophies.textContent = `Trophies  ${G.trophies}  (${sign}${delta})${newArena}`;
   showScreen('screen-result');
   SFX.stopBattle();
   if (r === 'victory') SFX.win(); else SFX.lose();
@@ -1070,7 +1111,15 @@ function draw(){
   ctx.fillStyle = '#0a1a33'; ctx.fillRect(0,0,CW,CH);
   // world transform: uniform scale to fill canvas height, crop sides
   ctx.setTransform(VS,0,0,VS,VXOFF,0);
-  ctx.drawImage(IMG.bgGame, 0, 0, W, H);
+  // arena background by trophy progress (cover-crop the square arena art)
+  const arenaImg = IMG['arena' + (arenaIndex()+1)] || IMG.bgGame;
+  if (arenaImg){
+    const wa = W / H;
+    let sx = 0, sy = 0, sw = arenaImg.width, sh = arenaImg.height;
+    if (sw/sh > wa){ sw = sh * wa; sx = (arenaImg.width - sw)/2; }
+    else { sh = sw / wa; sy = (arenaImg.height - sh)/2; }
+    ctx.drawImage(arenaImg, sx, sy, sw, sh, 0, 0, W, H);
+  } else ctx.drawImage(IMG.bgGame, 0, 0, W, H);
 
   // deploy zone overlay while dragging
   const selKey = (b.selected >= 0) ? b.player.hand[b.selected] : null;
@@ -1497,7 +1546,7 @@ async function boot(){
   wireDeckScroll();
   wireDeckCardDrag();
   $('btnRandom').addEventListener('click', () => {
-    const pool = ALL_CARD_KEYS.slice();
+    const pool = ALL_CARD_KEYS.filter(k => !CARDS[k].unlockTrophies || G.trophies >= CARDS[k].unlockTrophies);
     for (let i = pool.length-1; i > 0; i--){ const j = (Math.random()*(i+1))|0; [pool[i],pool[j]] = [pool[j],pool[i]]; }
     G.deck = pool.slice(0,8);
     renderDeckScreen(); SFX.beep(); toast('Random deck!');

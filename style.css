@@ -42,6 +42,14 @@ img { image-rendering:pixelated; }
 .img-btn.small { background:linear-gradient(180deg,#5aa7e8,#2d6bc0); border:2px solid #173a66; border-radius:10px; color:#fff; font-weight:bold; letter-spacing:1px; font-size:15px; padding:10px 22px; box-shadow:0 3px 0 #14335c; text-shadow:0 2px 2px rgba(0,0,0,.4); }
 .img-btn.small:disabled { filter:grayscale(.8) brightness(.7); cursor:not-allowed; transform:none; }
 .menu-row { display:flex; gap:14px; margin-top:18px; }
+.arena-info { display:flex; align-items:center; gap:10px; background:rgba(8,14,30,.72); border:2px solid #2b4a86; border-radius:12px; padding:6px 14px 6px 6px; margin-top:-6px; }
+.arena-info img { width:56px; height:56px; border-radius:9px; object-fit:cover; }
+.arena-txt { display:flex; flex-direction:column; gap:2px; text-align:left; }
+.arena-txt b { color:#ffd45a; font-size:15px; }
+.arena-txt span { color:#cfe4ff; font-size:12px; }
+.result-trophies { color:#ffd45a; font-size:17px; font-weight:bold; text-shadow:0 1px 3px #000; margin:2px 0 8px; }
+.deck-card.locked { filter:grayscale(.9) brightness(.55); pointer-events:none; }
+.lock-badge { position:absolute; bottom:20px; left:0; right:0; text-align:center; font-size:10px; color:#ffd45a; background:rgba(10,10,20,.75); padding:2px 0; line-height:1.2; z-index:1; }
 
 /* ---------- MENU ---------- */
 #screen-menu, #screen-difficulty, #screen-result { background:radial-gradient(120% 120% at 50% 30%, #1a4a8f 0%, #0d2247 55%, #060f22 100%); z-index:20; }
