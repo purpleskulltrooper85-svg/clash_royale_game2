@@ -382,7 +382,7 @@ const CARDS = {
   cannon:      { key:'cannon',      label:'Cannon',       cost:3, count:1, hp:824,  dmg:212,  hitSpeed:0.9, range:122, speed:0, radius:11, building:true, sprite:'Cannon', targets:'ground', lifetime:30, projectile:'canonball' },
   fireball:    { key:'fireball',    label:'Fireball',     cost:4, spell:true, dmg:688, radius:42, towerFactor:0.4 },
   poison:      { key:'poison',      label:'Poison',       cost:4, spell:true, dps:92, duration:8, radius:45, towerFactor:0.4 },
-  skeletonarmy:{ key:'skeletonarmy',label:'Skeleton Army',cost:3, count:16, hp:81, dmg:81, hitSpeed:1.1, range:14, speed:49, radius:6, sprite:'Skeleton', targets:'ground', unlockTrophies:200 },
+  skeletonarmy:{ key:'skeletonarmy',label:'Skeleton Army',cost:3, count:16, hp:81, dmg:81, hitSpeed:1.1, range:14, speed:49, radius:6, sprite:'Skeleton', targets:'ground', unlockTrophies:0 },
 };
 
 /* Arenas: trophy thresholds unlock each arena's look; higher arenas unlock cards */
@@ -1213,13 +1213,15 @@ function makeAI(diff, arena){
     medium: { interval:[1.6,2.6], skipChance:0.2,  defendChance:1.0,  spellIQ:1, pushElixir:7, defendElixir:0 },
     hard:   { interval:[0.9,1.7], skipChance:0.05, defendChance:1.0,  spellIQ:2, pushElixir:6, defendElixir:0 },
   }[diff];
-  // each arena makes the AI faster, less wasteful and more aggressive
+  // Bone Pit (arena 1) is the baseline; lower arenas are noticeably weaker,
+  // higher arenas steadily sharper — so the AI grows with every promotion
   const a = Math.max(0, Math.min(4, arena || 0));
-  cfg.interval = [cfg.interval[0]*(1-0.07*a), cfg.interval[1]*(1-0.07*a)];
-  cfg.skipChance = Math.max(0, cfg.skipChance - 0.05*a);
-  cfg.pushElixir = Math.max(4, cfg.pushElixir - a);
-  cfg.spellIQ = Math.min(2, cfg.spellIQ + (a >= 2 ? 1 : 0));
-  cfg.defendChance = Math.min(1, cfg.defendChance + 0.05*a);
+  const delta = a - 1;
+  cfg.interval = [cfg.interval[0]*(1-0.09*delta), cfg.interval[1]*(1-0.09*delta)];
+  cfg.skipChance = Math.max(0, Math.min(0.85, cfg.skipChance + 0.1*(-delta)));
+  cfg.pushElixir = Math.max(4, Math.min(10, cfg.pushElixir - delta));
+  cfg.spellIQ = Math.min(2, cfg.spellIQ + (a >= 3 ? 1 : 0));
+  cfg.defendChance = Math.max(0.5, Math.min(1, cfg.defendChance - 0.08*(-delta)));
   return { cfg, timer: 2.5, lock: {} };
 }
 
