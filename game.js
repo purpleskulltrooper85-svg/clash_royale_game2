@@ -23,7 +23,7 @@ const CARDS = {
   archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:49, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
   skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:81,   dmg:81,   hitSpeed:1.1, range:14, speed:49, radius:6,  sprite:'Skeleton',    targets:'ground' },
   giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:4090, dmg:253,  hitSpeed:1.5, range:20, speed:20, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
-  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1300, dmg:715, hitSpeed:1.6, range:16, speed:41, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.4 },
+  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1200, dmg:715, hitSpeed:1.6, range:16, speed:41, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.4, noShadow:true },
   babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:1152, dmg:161,  hitSpeed:1.5, range:42, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
   speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:49, speed:51, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
   golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:5120, dmg:312,  hitSpeed:2.5, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:1039, dmg:84, hitSpeed:2.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
@@ -603,6 +603,7 @@ function spawnUnit(sideKey, card, x, y, isSpawnChild){
       splash: stat.splash || 0,
       projectile: stat.projectile || null,
       building: !!stat.building,
+      noShadow: !!stat.noShadow,
       lifetime: stat.lifetime || 0,
       deathSpawn: stat.deathSpawn || null,
       deathCount: stat.deathCount || 0,
@@ -845,7 +846,7 @@ function attackUpdate(u, dt){
     const fr = FRAMES[u.sprite];
     const n = fr && fr.attack.length ? fr.attack.length : 6;
     u.attackAnimT = 0;
-    u.attackAnimDur = Math.max(0.3, Math.min(u.hitSpeed, n/12));
+    u.attackAnimDur = Math.max(0.4, Math.min(u.hitSpeed, n/7));
     u.face = faceDir(tgt.x - u.x, tgt.y - u.y);       // face the target while swinging
     u.pendingHit = { t: u.attackAnimDur * 0.55, target: tgt };
     u.hitDone = false;
@@ -1308,10 +1309,12 @@ function draw(){
   // units
   const units = b.units.slice().sort((a,c)=>a.y-c.y);
   for (const u of units){
-    // shadow
-    ctx.beginPath();
-    ctx.ellipse(u.x, u.y + u.radius*0.55, u.radius*0.9, u.radius*0.38, 0, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fill();
+    // shadow (hidden for cards flagged noShadow)
+    if (!u.noShadow){
+      ctx.beginPath();
+      ctx.ellipse(u.x, u.y + u.radius*0.55, u.radius*0.9, u.radius*0.38, 0, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fill();
+    }
     // side ring
     ctx.beginPath(); ctx.arc(u.x, u.y + u.radius*0.55, u.radius*0.55, 0, Math.PI*2);
     ctx.fillStyle = u.side==='player' ? 'rgba(70,140,255,0.55)' : 'rgba(255,70,70,0.55)'; ctx.fill();
@@ -1695,11 +1698,19 @@ async function boot(){
     if (ev.target.closest('button, .hand-card, .deck-card, .deck-slot, .modal-card')) SFX.click();
   });
   window.addEventListener('pointerdown', () => { SFX.retryStartup(); SFX.retryMusic(); });  // autoplay-blocked fallback
-  let introDone = false, assetsDone = false;
+  let introDone = false, assetsDone = false, loadingShown = false, loadShownAt = 0;
   const proceed = () => {
     if (!introDone) return;                             // intro still playing
-    if (!assetsDone){ showScreen('screen-loading'); return; }  // loading screen with real progress
-    showScreen('screen-menu'); SFX.music();
+    if (!assetsDone){                                   // loading screen with real progress
+      loadingShown = true; loadShownAt = performance.now();
+      showScreen('screen-loading'); return;
+    }
+    if (!loadingShown){                                 // cached assets: still show the loading screen
+      loadingShown = true; loadShownAt = performance.now();
+      showScreen('screen-loading');
+    }
+    const wait = Math.max(0, 2000 - (performance.now() - loadShownAt));   // visible >= 2s
+    setTimeout(() => { showScreen('screen-menu'); SFX.music(); }, wait);
   };
   runIntro(() => { introDone = true; proceed(); });
   loadAllAssets().then(() => { assetsDone = true; proceed(); });
