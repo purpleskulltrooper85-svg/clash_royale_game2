@@ -23,7 +23,7 @@ const CARDS = {
   archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:49, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
   skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:81,   dmg:81,   hitSpeed:1.1, range:14, speed:49, radius:6,  sprite:'Skeleton',    targets:'ground' },
   giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:4090, dmg:253,  hitSpeed:1.5, range:20, speed:20, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
-  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1300, dmg:715, hitSpeed:1.6, range:16, speed:41, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.17 },
+  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1300, dmg:715, hitSpeed:1.6, range:16, speed:41, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.4 },
   babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:1152, dmg:161,  hitSpeed:1.5, range:42, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
   speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:49, speed:51, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
   golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:5120, dmg:312,  hitSpeed:2.5, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:1039, dmg:84, hitSpeed:2.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
@@ -150,6 +150,27 @@ async function loadAnim(sprite, folder){
   const move = await probe(i => `${IMGDIR}${base}${sprite}Move${i}.png`);
   const attack = await probe(i => `${IMGDIR}${base}${sprite}Attack${i}.png`);
   FRAMES[sprite] = { move, attack };
+  // per-direction variant folders: Troop/<folder>/Move/Move_<dir>/0.png (raw frames, any resolution)
+  if (folder && await tryLoad(`${IMGDIR}${base}Move/Move_down/0.png`)){
+    const DIRS = ['down','up','downleft','downright','upleft','upright'];
+    const loadDir = async (kind, name) => {
+      const out = [];
+      for (let s0 = 0; s0 < 60; s0 += 12){
+        const res = await Promise.all(Array.from({length: Math.min(12, 60-s0)}, (_,j) => tryLoad(`${IMGDIR}${base}${kind}/${kind}_${name}/${s0+j}.png`)));
+        for (const r of res){ if (!r) return out; out.push(r); }
+      }
+      return out;
+    };
+    const moveDir = {}, attackDir = {};
+    for (const d of DIRS){
+      moveDir[d] = await loadDir('Move', d);
+      moveDir[d + '_red'] = await loadDir('Move', d + '_red');
+      attackDir[d] = await loadDir('Attack', d);
+      attackDir[d + '_red'] = await loadDir('Attack', d + '_red');
+    }
+    FRAMES[sprite].moveDir = moveDir;
+    FRAMES[sprite].attackDir = attackDir;
+  }
 }
 function tintImage(img, color){
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
@@ -216,7 +237,7 @@ async function loadAllAssets(){
 const $ = id => document.getElementById(id);
 const ui = {};
 ['loadBar','loadStep','screen-intro','screen-loading','screen-title','screen-menu','screen-deck','screen-difficulty','screen-battle','screen-result',
- 'introVideo','introArt',
+ 'introLogo',
  'deckGrid','deckSlots','deckCount','handRow','nextCard','elixirBar','elixirFill','elixirNum','gameCanvas','canvasWrap','timerLabel','phaseLabel',
  'playerCrowns','enemyCrowns','resultImg','resultCrowns','resultTrophies','arenaInfo','arenaModal','arenaModalCard','howModal','pauseModal','toastRoot'].forEach(id => ui[id.replace(/-(\w)/g,(m,c)=>c.toUpperCase())] = $(id));
 
@@ -521,11 +542,12 @@ function spawnUnit(sideKey, card, x, y, isSpawnChild){
   else if (n === 2) offsets.push([-11,0],[11,0]);
   else if (n === 3) offsets.push([0,-10],[-11,8],[11,8]);
   else {
-    // grid formation for big groups (skeleton army etc.)
-    const cols = 4, sp = 13, rows = Math.ceil(n / cols);
+    // spread grid formation for big groups (skeleton army etc.)
+    const cols = 4, sp = 19, rows = Math.ceil(n / cols);
     for (let i = 0; i < n; i++){
       const col = i % cols, row = (i / cols) | 0;
-      offsets.push([(col - (cols-1)/2) * sp, (row - (rows-1)/2) * sp]);
+      const jx = (Math.random()-0.5) * 7, jy = (Math.random()-0.5) * 7;
+      offsets.push([(col - (cols-1)/2) * sp + jx, (row - (rows-1)/2) * sp + jy]);
     }
   }
   const made = [];
@@ -551,6 +573,7 @@ function spawnUnit(sideKey, card, x, y, isSpawnChild){
       deathCount: stat.deathCount || 0,
       aimAng: 0,
       scale: stat.scale || 1.3,
+      face: sideKey === 'player' ? 'up' : 'down',   // player marches up-screen, enemy down
       x: x + o[0], y: y + o[1],
       target: null, retargetT: 0, atkCd: 0,
       animT: Math.random()*10, walkDist: 0,
@@ -719,6 +742,7 @@ function moveUpdate(u, dt){
     const step = u.speed * dt;
     u.x += dx/dd * step; u.y += dy/dd * step;
     u.walkDist += step;
+    u.face = faceDir(dx, dy);                         // face movement direction (6-way)
     if (u.flying) u.y += Math.sin(battle.time + u.id) * 6 * dt; // gentle bob
   }
   // keep ground units out of the river unless on a bridge
@@ -728,6 +752,41 @@ function moveUpdate(u, dt){
   }
   u.x = Math.max(14, Math.min(386, u.x));
   u.y = Math.max(30, Math.min(585, u.y));
+}
+
+const FACE_OPP = { up:'down', down:'up', upleft:'downright', upright:'downleft', downleft:'upright', downright:'upleft' };
+function faceDir(dx, dy){
+  // 6-way facing from a movement/aim vector; bearing 0 = up (away from camera)
+  const b = Math.atan2(dx, -dy) * 180 / Math.PI;
+  if (b >= -30 && b < 30) return 'up';
+  if (b >= 30 && b < 90) return 'upright';
+  if (b >= 90 && b < 150) return 'downright';
+  if (b >= 150 || b < -150) return 'down';
+  if (b >= -90 && b < -30) return 'upleft';
+  return 'downleft';
+}
+function animSet(fr, kind, u){
+  // pick the variant set matching this unit's facing and side; fall back gracefully
+  const dirs = kind === 'attack' ? fr.attackDir : fr.moveDir;
+  if (dirs){
+    const face = u.face || 'down';
+    const red = dirs[face + '_red'];
+    if (u.side === 'enemy' && red && red.length) return { set: red, rotate: false };
+    if (u.side === 'enemy'){
+      const opp = dirs[FACE_OPP[face] || face];
+      if (opp && opp.length) return { set: opp, rotate: true };   // blue opposite-face, rotated 180
+    }
+    const blue = dirs[face];
+    if (blue && blue.length) return { set: blue, rotate: false };
+    // diagonal art missing — fall back to the plain up/down set
+    const vert = (face === 'upleft' || face === 'upright') ? 'up'
+               : (face === 'downleft' || face === 'downright') ? 'down' : face;
+    const vred = dirs[vert + '_red'];
+    if (u.side === 'enemy' && vred && vred.length) return { set: vred, rotate: false };
+    if (u.side === 'enemy' && dirs[vert] && dirs[vert].length) return { set: dirs[vert], rotate: true };
+    if (dirs[vert] && dirs[vert].length) return { set: dirs[vert], rotate: false };
+  }
+  return { set: kind === 'attack' ? fr.attack : fr.move, rotate: u.side === 'enemy' };
 }
 
 function attackUpdate(u, dt){
@@ -743,6 +802,7 @@ function attackUpdate(u, dt){
     const n = fr && fr.attack.length ? fr.attack.length : 6;
     u.attackAnimT = 0;
     u.attackAnimDur = Math.max(0.3, Math.min(u.hitSpeed, n/12));
+    u.face = faceDir(tgt.x - u.x, tgt.y - u.y);       // face the target while swinging
     u.pendingHit = { t: u.attackAnimDur * 0.55, target: tgt };
     u.hitDone = false;
     u.atkCd = u.hitSpeed;
@@ -1213,13 +1273,19 @@ function draw(){
     ctx.fillStyle = u.side==='player' ? 'rgba(70,140,255,0.55)' : 'rgba(255,70,70,0.55)'; ctx.fill();
 
     const fr = FRAMES[u.sprite];
-    let img = null;
-    if (u.attackAnimT >= 0 && fr && fr.attack.length){
-      const fi = Math.min(fr.attack.length-1, Math.floor(u.attackAnimT / u.attackAnimDur * fr.attack.length));
-      img = fr.attack[fi];
-    } else if (fr && fr.move.length){
-      const fi = Math.floor(u.walkDist / 6) % fr.move.length;
-      img = fr.move[fi];
+    let img = null, rotateSpr = false;
+    if (fr){
+      const apick = animSet(fr, 'attack', u);
+      const kind = (u.attackAnimT >= 0 && apick.set && apick.set.length) ? 'attack' : 'move';
+      const pick = kind === 'attack' ? apick : animSet(fr, 'move', u);
+      rotateSpr = !!pick.rotate;
+      const set = pick.set;
+      if (set && set.length){
+        const fi = kind === 'attack'
+          ? Math.min(set.length-1, Math.floor(u.attackAnimT / u.attackAnimDur * set.length))
+          : Math.floor(u.walkDist / 6) % set.length;
+        img = set[fi];
+      }
     }
     if (u.building && IMG.cannonBase && IMG.cannonBarrel){
       // cannon: static base + barrel that rotates toward the target
@@ -1236,11 +1302,14 @@ function draw(){
       continue;
     }
     const scale = u.scale || 1.3;
-    const dw = (img ? img.width : 30) * scale, dh = (img ? img.height : 30) * scale;
+    // code-based percentage sizing: the frame's canvas height always renders as
+    // 35*scale world px, so raw high-res frames draw at the correct size unchanged
+    const k = img ? (35 * scale) / img.height : scale;
+    const dw = (img ? img.width : 30) * k, dh = (img ? img.height : 30) * k;
     if (img){
       if (u.spawnT > 0) ctx.globalAlpha = 0.5 + 0.5*Math.sin(u.spawnT*30);
-      if (u.side === 'enemy'){
-        // enemies face down toward the player
+      if (rotateSpr){
+        // no dedicated side art: rotate the opposite-facing frame 180 degrees
         ctx.save(); ctx.translate(u.x, u.y); ctx.rotate(Math.PI);
         ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
         ctx.restore();
@@ -1562,16 +1631,10 @@ function wireUI(){
 function runIntro(onDone){
   showScreen('screen-intro');
   setTimeout(() => SFX.startup(), 100);                 // sound at 0.1s
-  const vid = ui.introVideo;
-  vid.classList.remove('gone');
-  vid.currentTime = 0;
-  vid.play().catch(()=>{});
-  setTimeout(() => {                                    // hide video, splash art at 2.1s
-    vid.pause();
-    vid.classList.add('gone');
-    ui.introArt.classList.add('show');
-  }, 2100);
-  setTimeout(onDone, 4100);                             // 2.1s video + 2s art
+  // restart the Supercell pop/fade animation
+  const logo = ui.introLogo;
+  logo.style.animation = 'none'; void logo.offsetWidth; logo.style.animation = '';
+  setTimeout(onDone, 2600);                             // Supercell logo pop + fade
 }
 async function boot(){
   wireUI();
@@ -1589,7 +1652,11 @@ async function boot(){
   });
   window.addEventListener('pointerdown', () => { SFX.retryStartup(); SFX.retryMusic(); });  // autoplay-blocked fallback
   let introDone = false, assetsDone = false;
-  const proceed = () => { if (introDone && assetsDone){ showScreen('screen-menu'); SFX.music(); } };
+  const proceed = () => {
+    if (!introDone) return;                             // intro still playing
+    if (!assetsDone){ showScreen('screen-loading'); return; }  // loading screen with real progress
+    showScreen('screen-menu'); SFX.music();
+  };
   runIntro(() => { introDone = true; proceed(); });
   loadAllAssets().then(() => { assetsDone = true; proceed(); });
   rafId = requestAnimationFrame(loop);

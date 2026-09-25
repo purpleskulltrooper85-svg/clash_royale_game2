@@ -9,20 +9,22 @@ img { image-rendering:pixelated; }
 
 /* ---------- STARTUP INTRO ---------- */
 #screen-intro { background:#000; z-index:80; }
-#introVideo { position:relative; width:280px; max-width:70vw; z-index:2; }
-#introVideo.gone { display:none; }
-#introArt { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .35s ease; transform:scale(1); }
-#introArt.show { opacity:1; animation:artZoom 3.2s ease-out forwards; }
-@keyframes artZoom { from { transform:scale(1); } to { transform:scale(1.09); } }
+#introLogo { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; image-rendering:auto; opacity:0; transform:scale(.82); animation:supercellPop 2.6s ease forwards; }
+@keyframes supercellPop {
+  0%   { opacity:0; transform:scale(.82); }
+  22%  { opacity:1; transform:scale(1); }
+  72%  { opacity:1; transform:scale(1); }
+  100% { opacity:0; transform:scale(1.05); }
+}
 #screen-intro.fade-out { transition:opacity .4s; opacity:0; pointer-events:none; }
 
 /* ---------- LOADING ---------- */
-#screen-loading { background:radial-gradient(120% 120% at 50% 30%, #14336b 0%, #0a1a33 55%, #050b18 100%); z-index:50; }
-.load-inner { display:flex; flex-direction:column; align-items:center; gap:18px; width:min(80vw,340px); }
-.load-logo { width:min(60vw,240px); }
+#screen-loading { background:#000; z-index:50; }
+.load-title { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; image-rendering:auto; }
+.load-bottom { position:absolute; left:0; right:0; bottom:7%; display:flex; flex-direction:column; align-items:center; gap:10px; padding:0 12%; }
 .load-bar-wrap { width:100%; height:16px; border-radius:9px; background:#0a1226; border:2px solid #2b4a86; overflow:hidden; }
-.load-bar { height:100%; width:0%; border-radius:7px; background:linear-gradient(180deg,#8ee6ff,#2d8fe0); transition:width .15s; }
-.load-step { font-size:13px; color:#9fc2ef; letter-spacing:.5px; }
+.load-bar { height:100%; width:0%; border-radius:7px; background:linear-gradient(180deg,#7fd4ff,#2196f3); box-shadow:0 0 10px rgba(60,180,255,.75); transition:width .15s; }
+.load-step { font-size:13px; color:#cfe6ff; letter-spacing:.5px; text-shadow:0 1px 3px #000; }
 
 /* ---------- TITLE ---------- */
 #screen-title { background:radial-gradient(120% 120% at 50% 35%, #1a4a8f 0%, #0d2247 55%, #060f22 100%); cursor:pointer; z-index:40; }
