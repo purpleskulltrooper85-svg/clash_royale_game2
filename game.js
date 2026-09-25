@@ -134,6 +134,13 @@ function tryLoad(src){
 function loadImg(key, src){
   return tryLoad(src).then(i => { if (i) IMG[key] = i; });
 }
+// raw export blocks that are mirrored copies — flipped in code so files stay untouched
+const FLIP_DIRS = {
+  PekkaMini: {
+    move:   ['downleft','downleft_red','upleft','upleft_red'],
+    attack: ['downright','downright_red','upright','upright_red'],
+  },
+};
 async function loadAnim(sprite, folder){
   // probe frames in parallel chunks until the first gap
   const probe = async makeSrc => {
@@ -170,6 +177,18 @@ async function loadAnim(sprite, folder){
     }
     FRAMES[sprite].moveDir = moveDir;
     FRAMES[sprite].attackDir = attackDir;
+    const flip = FLIP_DIRS[sprite];
+    if (flip){
+      const flipSet = arr => arr.map(img => {
+        if (!img) return img;
+        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+        const cx = c.getContext('2d');
+        cx.translate(img.width, 0); cx.scale(-1, 1); cx.drawImage(img, 0, 0);
+        return c;
+      });
+      for (const d of flip.move || []) if (moveDir[d] && moveDir[d].length) moveDir[d] = flipSet(moveDir[d]);
+      for (const d of flip.attack || []) if (attackDir[d] && attackDir[d].length) attackDir[d] = flipSet(attackDir[d]);
+    }
   }
 }
 function tintImage(img, color){
@@ -773,7 +792,10 @@ function animSet(fr, kind, u){
     const red = dirs[face + '_red'];
     if (u.side === 'enemy' && red && red.length) return { set: red, rotate: false };
     if (u.side === 'enemy'){
-      const opp = dirs[FACE_OPP[face] || face];
+      const oppName = FACE_OPP[face] || face;
+      const oppRed = dirs[oppName + '_red'];
+      if (oppRed && oppRed.length) return { set: oppRed, rotate: true };   // red opposite-face, rotated 180 (back view)
+      const opp = dirs[oppName];
       if (opp && opp.length) return { set: opp, rotate: true };   // blue opposite-face, rotated 180
     }
     const blue = dirs[face];
@@ -785,6 +807,12 @@ function animSet(fr, kind, u){
     if (u.side === 'enemy' && vred && vred.length) return { set: vred, rotate: false };
     if (u.side === 'enemy' && dirs[vert] && dirs[vert].length) return { set: dirs[vert], rotate: true };
     if (dirs[vert] && dirs[vert].length) return { set: dirs[vert], rotate: false };
+    // no art for this facing (e.g. no up-facing attack in the export) — show the front swing turned away (back view)
+    if (kind === 'attack' && dirs['down'] && dirs['down'].length){
+      const dred = dirs['down_red'];
+      if (u.side === 'enemy' && dred && dred.length) return { set: dred, rotate: true };
+      return { set: dirs['down'], rotate: true };
+    }
   }
   return { set: kind === 'attack' ? fr.attack : fr.move, rotate: u.side === 'enemy' };
 }
