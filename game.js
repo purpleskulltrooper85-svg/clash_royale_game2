@@ -228,6 +228,7 @@ async function loadAllAssets(){
     ['endVictory','EndVictory.png'],['endDefeat','EndDefeat.png'],['endDraw','EndDraw.png'],
     ['doubleElixir','TextDoubleElixir.png'],['cardNext','CardNext.png'],
     ['circleFireball','CircleFireball.png'],['circlePoison','CirclePoison.png'],
+    ['elixirIcon','ElixirIcon.webp'],['clock','Clock.png'],
     ['towerDestroyed','TowerDestroyed.png'],['crown','Crown.png'],
     ['arena1','Arena1.png'],['arena2','Arena2.png'],['arena3','Arena3.png'],['arena4','Arena4.png'],
   ];
@@ -261,9 +262,31 @@ async function loadAllAssets(){
     const pp = probeChunk(i => `${IMGDIR}Spell/Poison/PoisonAttack${i}.png`, 60);
     const parr = probeChunk(i => `${IMGDIR}Spell/Arrows/effects_sprite_${443+i}.png`, 12);
     const [rm, ra, rp, rarr] = await Promise.all([pm, pa, pp, parr].map(p => phase(50,60)(p)));
+    // the raw arrow export uses huge 474x537 canvases with a tiny ~40x8 arrow in
+    // the middle — crop every frame to its drawn content so it renders visibly
+    const cropped = [];
+    for (const img of rarr){
+      if (!img) { cropped.push(img); continue; }
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const cx = c.getContext('2d'); cx.drawImage(img, 0, 0);
+      const d = cx.getImageData(0, 0, img.width, img.height).data;
+      let x0 = img.width, y0 = img.height, x1 = -1, y1 = -1;
+      for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++){
+        if (d[(y*img.width+x)*4+3] > 30){
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+      if (x1 < 0){ cropped.push(img); continue; }
+      const pad = 2;
+      x0 = Math.max(0, x0-pad); y0 = Math.max(0, y0-pad); x1 = Math.min(img.width-1, x1+pad); y1 = Math.min(img.height-1, y1+pad);
+      const c2 = document.createElement('canvas'); c2.width = x1-x0+1; c2.height = y1-y0+1;
+      c2.getContext('2d').drawImage(c, x0, y0, c2.width, c2.height, 0, 0, c2.width, c2.height);
+      cropped.push(c2);
+    }
     FRAMES.SpellFireball = { move:rm, attack:ra };
     FRAMES.SpellPoison = { move:[], attack:rp };
-    FRAMES.SpellArrows = { move:[], attack:rarr };   // flying-arrow frames, played in reverse (raw export is backwards)
+    FRAMES.SpellArrows = { move:[], attack:cropped };   // flying-arrow frames, played in reverse (raw export is backwards)
   }
   // phase 4: troop animations (60-100%)
   const troops = [['Knight','Knight'],['Archer','Archer'],['Skeleton','Skeleton'],['Giant','Giant'],['PekkaMini','PekkaMini'],['DragonBaby','DragonBaby'],['GoblinSpear','GoblinSpear'],['Golem','Golem'],['Golemite','Golemite']];
@@ -617,7 +640,7 @@ function spawnUnit(sideKey, card, x, y, isSpawnChild){
       target: null, retargetT: 0, atkCd: 0,
       animT: Math.random()*10, walkDist: 0,
       attackAnimT: -1, attackAnimDur: 0, pendingHit: null, hitDone: false,
-      dead: false, spawnT: 0.35,
+      dead: false, spawnT: 1.0,   // standard 1.0s deploy time (spells are instant on landing)
     };
     if (u.projectile === 'fireball') u.projectileSprite = 'pjFireball';
     if (u.projectile === 'canonball') u.projectileSprite = 'pjCanonball';
@@ -1392,7 +1415,6 @@ function draw(){
     const k = img ? (35 * scale) / img.height : scale;
     const dw = (img ? img.width : 30) * k, dh = (img ? img.height : 30) * k;
     if (img){
-      if (u.spawnT > 0) ctx.globalAlpha = 0.5 + 0.5*Math.sin(u.spawnT*30);
       if (rotateSpr){
         // no dedicated side art: rotate the opposite-facing frame 180 degrees
         ctx.save(); ctx.translate(u.x, u.y); ctx.rotate(Math.PI);
@@ -1401,7 +1423,11 @@ function draw(){
       } else {
         ctx.drawImage(img, u.x-dw/2, u.y-dh/2, dw, dh);
       }
-      ctx.globalAlpha = 1;
+      if (u.spawnT > 0 && IMG.clock){
+        // deploy timer: clock in front of the troop, shrinking away as deploy ends
+        const cs = (u.spawnT < 0.35 ? u.spawnT/0.35 : 1) * 30;
+        ctx.drawImage(IMG.clock, u.x-cs/2, u.y-cs/2-8, cs, cs);
+      }
     }
     if (u.hp < u.maxHp) drawBar(u.x, u.y - dh/2 - 8, Math.max(20, dw*0.55), u.hp/u.maxHp, u.side);
   }
@@ -1444,8 +1470,9 @@ function draw(){
         const img = seq[fi];
         // sprite's native nose direction is down-left (135deg); rotate to match velocity
         const ang = Math.atan2(p.ty-p.y, p.tx-p.x) - 3*Math.PI/4;
+        const fk = 44/img.width;                 // cropped arrow ~44px long -> 44 world px
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(ang);
-        ctx.drawImage(img, -24, -24, 48, 48);
+        ctx.drawImage(img, -img.width*fk/2, -img.height*fk/2, img.width*fk, img.height*fk);
         ctx.restore();
       }
     } else {
@@ -1489,10 +1516,10 @@ function draw(){
       if (fr && fr.attack.length){
         // first sprite of the volley, random rotation, sticks in the ground then fades
         const img = fr.attack[0];
-        const k = e.t / e.dur;
+        const k = e.t / e.dur, fk = 34/img.width;
         ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.rot);
         ctx.globalAlpha = k > 0.7 ? Math.max(0, 1-(k-0.7)/0.3) : 0.95;
-        ctx.drawImage(img, -17, -17, 34, 34);
+        ctx.drawImage(img, -img.width*fk/2, -img.height*fk/2, img.width*fk, img.height*fk);
         ctx.restore(); ctx.globalAlpha = 1;
       }
     } else if (e.type === 'crown'){
@@ -1519,15 +1546,44 @@ function draw(){
       const pos = snapTile(b.pointerPos);
       const ok = deployValid(selKey, pos.x, pos.y, 'player') && b.player.elixir >= CARDS[selKey].cost;
       if (!CARDS[selKey].spell){
-        // highlight the target tile
-        ctx.strokeStyle = ok ? 'rgba(255,255,255,0.9)' : 'rgba(255,125,125,0.9)';
+        // faint tile shine (0-15% opacity) + deploy ghost: first walk sprite at 50%
+        ctx.strokeStyle = ok ? 'rgba(255,255,255,0.15)' : 'rgba(255,125,125,0.20)';
         ctx.lineWidth = 2;
         ctx.strokeRect(pos.x-TILE/2, pos.y-TILE/2, TILE, TILE);
+        const fr = FRAMES[CARDS[selKey].sprite];
+        const mvSet = fr && fr.moveDir && (fr.moveDir.down && fr.moveDir.down.length ? fr.moveDir.down : fr.move);
+        const ghost = mvSet && mvSet[0];
+        if (ghost){
+          const gscale = CARDS[selKey].scale || 1.3;
+          const gk = (35 * gscale) / ghost.height;
+          const gw = ghost.width*gk, gh = ghost.height*gk;
+          ctx.globalAlpha = ok ? 0.5 : 0.35;
+          ctx.drawImage(ghost, pos.x-gw/2, pos.y-gh/2, gw, gh);
+          ctx.globalAlpha = 1;
+        }
+        // troop name above the ghost
+        ctx.font = 'bold 12px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+        ctx.strokeText(CARDS[selKey].label, pos.x, pos.y - 30);
+        ctx.fillStyle = ok ? '#ffffff' : '#ff9c9c';
+        ctx.fillText(CARDS[selKey].label, pos.x, pos.y - 30);
+        // elixir readout "have/cost" in purple with the drop icon beside it
+        const txt = `${Math.floor(b.player.elixir)}/${CARDS[selKey].cost}`;
+        ctx.font = 'bold 13px system-ui, sans-serif';
+        const tw = ctx.measureText(txt).width;
+        const iconS = 14, gap = 4, bx = pos.x + tw/2 + gap + iconS/2 - 6;
+        ctx.strokeText(txt, pos.x - 6, pos.y - 16);
+        ctx.fillStyle = '#c95cf0';                       // purple elixir text
+        ctx.fillText(txt, pos.x - 6, pos.y - 16);
+        if (IMG.elixirIcon) ctx.drawImage(IMG.elixirIcon, bx - iconS/2, pos.y - 16 - iconS + 2, iconS, iconS);
+      } else {
+        // spells keep the target circle
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, CARDS[selKey].radius || 14, 0, Math.PI*2);
+        ctx.fillStyle = ok ? 'rgba(255,255,255,0.10)' : 'rgba(230,70,70,0.20)';
+        ctx.fill(); ctx.lineWidth = 2;
+        ctx.strokeStyle = ok ? 'rgba(255,255,255,0.15)' : 'rgba(255,125,125,0.30)'; ctx.stroke();
       }
-      ctx.beginPath(); ctx.arc(pos.x, pos.y, 13, 0, Math.PI*2);
-      ctx.fillStyle = ok ? 'rgba(255,255,255,0.30)' : 'rgba(230,70,70,0.35)';
-      ctx.fill(); ctx.lineWidth = 2;
-      ctx.strokeStyle = ok ? 'rgba(255,255,255,0.9)' : '#ff7d7d'; ctx.stroke();
     }
   }
 
