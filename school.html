@@ -490,8 +490,9 @@ function loadImg(key, src){
 // raw export blocks that are mirrored copies — flipped in code so files stay untouched
 const FLIP_DIRS = {
   PekkaMini: {
-    move:   ['downleft','downleft_red','upleft','upleft_red'],
-    attack: ['downright','downright_red','upright','upright_red'],
+    move:   ['upleft','upleft_red'],
+    mirror: { downleft: 'downright', downleft_red: 'downright_red' },   // down-left walk = down-right walk mirrored
+    attack: ['downleft','downleft_red','upleft','upleft_red'],
   },
 };
 async function loadAnim(sprite, folder){
@@ -532,15 +533,30 @@ async function loadAnim(sprite, folder){
     FRAMES[sprite].attackDir = attackDir;
     const flip = FLIP_DIRS[sprite];
     if (flip){
-      const flipSet = arr => arr.map(img => {
+      const flipH = arr => arr.map(img => {
         if (!img) return img;
         const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
         const cx = c.getContext('2d');
         cx.translate(img.width, 0); cx.scale(-1, 1); cx.drawImage(img, 0, 0);
         return c;
       });
-      for (const d of flip.move || []) if (moveDir[d] && moveDir[d].length) moveDir[d] = flipSet(moveDir[d]);
-      for (const d of flip.attack || []) if (attackDir[d] && attackDir[d].length) attackDir[d] = flipSet(attackDir[d]);
+      const flipV = arr => arr.map(img => {
+        if (!img) return img;
+        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+        const cx = c.getContext('2d');
+        cx.translate(0, img.height); cx.scale(1, -1); cx.drawImage(img, 0, 0);
+        return c;
+      });
+      for (const d of flip.move || []) if (moveDir[d] && moveDir[d].length) moveDir[d] = flipH(moveDir[d]);
+      for (const d of flip.attack || []) if (attackDir[d] && attackDir[d].length) attackDir[d] = flipH(attackDir[d]);
+      for (const [to, from] of Object.entries(flip.mirror || {})){
+        if (moveDir[from] && moveDir[from].length) moveDir[to] = flipH(moveDir[from]);
+      }
+      // no up-facing attack in the export — the back-side attack is the front swing flipped vertically
+      for (const s of ['','_red']){
+        const dn = attackDir['down' + s];
+        if ((!attackDir['up' + s] || !attackDir['up' + s].length) && dn && dn.length) attackDir['up' + s] = flipV(dn);
+      }
     }
   }
 }
