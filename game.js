@@ -719,14 +719,15 @@ function castSpell(side, cardKey, x, y){
     battle.effects.push({ type:'poison', side, x, y, r: card.radius, dps: card.dps, towerFactor: card.towerFactor, t:0, dur: card.duration, tickT:0 });
     SFX.spell();
   } else if (cardKey === 'arrows'){
-    // volley: 3 arrows rain in from up-right, each landing at a scatter point in the damage area
+    // volley: 3 arrows rain in from the caster's side, landing scattered in the damage area
     const volley = { hit:false };                       // full damage applies once, on the first landing
     for (let i = 0; i < 3; i++){
       const ang = Math.random()*Math.PI*2, rr = Math.random()*card.radius*0.55;
       const tx = x + Math.cos(ang)*rr, ty = y + Math.sin(ang)*rr*0.8;
+      const fromMySide = side === 'player' ? 1 : -1;    // player arrows fly up from the bottom, enemy from the top
       battle.projectiles.push({
         type:'spellArrow', side, volley,
-        x: tx + 110 + Math.random()*40, y: ty - 150 - Math.random()*40,
+        x: tx + 110*fromMySide + Math.random()*40, y: ty + 150*fromMySide + Math.random()*40,
         tx, ty, speed: 400,
         dmg: card.dmg, radius: card.radius, towerFactor: card.towerFactor,
         animT: 0, delay: i*0.14, done:false,
@@ -1470,7 +1471,7 @@ function draw(){
         const img = seq[fi];
         // sprite's native nose direction is down-left (135deg); rotate to match velocity
         const ang = Math.atan2(p.ty-p.y, p.tx-p.x) - 3*Math.PI/4;
-        const fk = 44/img.width;                 // cropped arrow ~44px long -> 44 world px
+        const fk = 34/img.width;                 // cropped arrow ~37px long -> 34 world px (in air)
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(ang);
         ctx.drawImage(img, -img.width*fk/2, -img.height*fk/2, img.width*fk, img.height*fk);
         ctx.restore();
@@ -1516,7 +1517,7 @@ function draw(){
       if (fr && fr.attack.length){
         // first sprite of the volley, random rotation, sticks in the ground then fades
         const img = fr.attack[0];
-        const k = e.t / e.dur, fk = 34/img.width;
+        const k = e.t / e.dur, fk = 26/img.width;
         ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.rot);
         ctx.globalAlpha = k > 0.7 ? Math.max(0, 1-(k-0.7)/0.3) : 0.95;
         ctx.drawImage(img, -img.width*fk/2, -img.height*fk/2, img.width*fk, img.height*fk);
@@ -1551,7 +1552,10 @@ function draw(){
         ctx.lineWidth = 2;
         ctx.strokeRect(pos.x-TILE/2, pos.y-TILE/2, TILE, TILE);
         const fr = FRAMES[CARDS[selKey].sprite];
-        const mvSet = fr && fr.moveDir && (fr.moveDir.down && fr.moveDir.down.length ? fr.moveDir.down : fr.move);
+        // ghost faces the way the troop will march (player marches up-screen);
+        // variant sprites use their up set, flat sprites fall back to their move frames
+        const mvSet = (fr && fr.moveDir && fr.moveDir.up && fr.moveDir.up.length) ? fr.moveDir.up
+                    : (fr && fr.move && fr.move.length) ? fr.move : null;
         const ghost = mvSet && mvSet[0];
         if (ghost){
           const gscale = CARDS[selKey].scale || 1.3;
@@ -1654,8 +1658,12 @@ function updateHandAffordability(){
 }
 
 /* ---------------- input ---------------- */
+let canvasRect = null;
+function refreshCanvasRect(){ canvasRect = canvas.getBoundingClientRect(); }
+window.addEventListener('resize', refreshCanvasRect);
 function canvasPos(ev){
-  const r = canvas.getBoundingClientRect();
+  if (!canvasRect || !canvasRect.width) refreshCanvasRect();   // cached: per-move getBoundingClientRect forces layout jank
+  const r = canvasRect;
   const cx = (ev.clientX - r.left) / r.width * CW;     // canvas px
   const cy = (ev.clientY - r.top) / r.height * CH;
   return { x: (cx - VXOFF) / VS, y: cy / VS };        // invert world transform
@@ -1704,14 +1712,14 @@ window.addEventListener('pointermove', ev => {
   if (!battle || battle.over) return;
   if (battle.selected < 0) return;
   if (dragInfo && (Math.abs(ev.clientX-dragInfo.x0) > 10 || Math.abs(ev.clientY-dragInfo.y0) > 10)) dragInfo.moved = true;
-  // ghost preview only follows the cursor when it is truly over the grid,
-  // not over the hand / elixir bar / UI that sit on top of the canvas
-  const under = document.elementFromPoint(ev.clientX, ev.clientY);
-  battle.pointerPos = (under === canvas) ? canvasPos(ev) : null;
+  // ghost preview only follows the cursor when it is truly over the grid.
+  // ev.target check is cheap — elementFromPoint forced a layout flush on every move (placement lag)
+  battle.pointerPos = (ev.target === canvas) ? canvasPos(ev) : null;
 });
 window.addEventListener('pointerup', ev => {
   if (!battle || battle.over) return;
   if (battle.selected < 0) return;
+  refreshCanvasRect();                                // one layout flush per release is fine
   // only place if the cursor is actually on the grid (canvas) at release —
   // releasing over the hand, elixir bar, or any UI keeps the card selected
   const under = document.elementFromPoint(ev.clientX, ev.clientY);
