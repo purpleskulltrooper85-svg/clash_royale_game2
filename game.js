@@ -20,12 +20,12 @@ const IMGDIR = 'assets/img/';
 /* ---------------- card definitions ---------------- */
 const CARDS = {
   knight:      { key:'knight',      label:'Knight',       cost:3, count:1, hp:1766, dmg:202,  hitSpeed:1.2, range:18, speed:38, radius:9,  sprite:'Knight',      targets:'ground' },
-  archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:49, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow' },
+  archers:     { key:'archers',     label:'Archers',      cost:3, count:2, hp:304,  dmg:112,  hitSpeed:0.9, range:49, speed:38, radius:7, sprite:'Archer',     targets:'any', projectile:'arrow', scale:1.12 },
   skeletons:   { key:'skeletons',   label:'Skeletons',    cost:1, count:3, hp:81,   dmg:81,   hitSpeed:1.1, range:14, speed:49, radius:6,  sprite:'Skeleton',    targets:'ground' },
   giant:       { key:'giant',       label:'Giant',        cost:5, count:1, hp:4090, dmg:253,  hitSpeed:1.5, range:20, speed:20, radius:12, sprite:'Giant',       targets:'ground', buildingsOnly:true },
-  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1200, dmg:715, hitSpeed:1.6, range:16, speed:41, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.4, noShadow:true },
+  minipekka:   { key:'minipekka',   label:'Mini P.E.K.K.A', cost:4, count:1, hp:1200, dmg:715, hitSpeed:1.6, range:16, speed:37, radius:9, sprite:'PekkaMini', targets:'ground', scale:1.4, noShadow:true },
   babydragon:  { key:'babydragon',  label:'Baby Dragon',  cost:4, count:1, hp:1152, dmg:161,  hitSpeed:1.5, range:42, speed:34, radius:10, sprite:'DragonBaby',  targets:'any', flying:true, splash:38, projectile:'fireball' },
-  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:49, speed:51, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
+  speargoblins:{ key:'speargoblins',label:'Spear Goblins',cost:2, count:3, hp:133,  dmg:81,   hitSpeed:1.7, range:49, speed:46, radius:6, sprite:'GoblinSpear', targets:'any', projectile:'spear' },
   golem:       { key:'golem',       label:'Golem',        cost:8, count:1, hp:5120, dmg:312,  hitSpeed:2.5, range:20, speed:22, radius:14, sprite:'Golem',       targets:'ground', buildingsOnly:true, deathSpawn:{ sprite:'Golemite', hp:1039, dmg:84, hitSpeed:2.5, range:16, speed:38, radius:10, targets:'ground', buildingsOnly:true }, deathCount:2 },
   cannon:      { key:'cannon',      label:'Cannon',       cost:3, count:1, hp:824,  dmg:212,  hitSpeed:0.9, range:122, speed:0, radius:11, building:true, sprite:'Cannon', targets:'ground', lifetime:30, projectile:'canonball' },
   fireball:    { key:'fireball',    label:'Fireball',     cost:4, spell:true, dmg:688, radius:42, towerFactor:0.4 },
@@ -47,7 +47,20 @@ const DEFAULT_DECK = ['knight','archers','skeletons','giant','minipekka','babydr
 
 /* ---------------- sound ---------------- */
 const SFX = (() => {
+  const sfxCache = {};
+  function play(name, vol){                      // per-card troop/spell sounds from assets/sfx
+    if (!name) return;
+    try {
+      const a = sfxCache[name] || (sfxCache[name] = new Audio(`assets/sfx/${name}.wav`));
+      const inst = a.cloneNode();
+      inst.volume = vol || 0.7;
+      inst.play().catch(()=>{});
+    } catch(err){}
+  }
   return {
+    play,
+    card(cardKey){ play('deploy_' + cardKey, 0.75); },
+    hit(cardKey){ play('atk_' + cardKey, 0.55); },
     deploy(){}, spell(){}, win(){}, lose(){}, beep(){},
     towerDown(){
       const a = SFX.towerAudio || (SFX.towerAudio = new Audio('assets/sound/tower-down.wav'));
@@ -573,7 +586,7 @@ function startBattle(){
     player: makeSide('player'), enemy: makeSide('enemy'),
     doubleElixir: false, doubleBannerT: 0,
     startBannerT: 2.0,
-    aiTimer: 2.0, selected: -1, dragCanvas: null, pointerPos: null,
+    aiTimer: 2.0, selected: -1, dragCanvas: null, pointerPos: null, pendingPlace: null,
     idc: 0,
   };
   initHand(battle.player, deck);
@@ -630,6 +643,7 @@ function spawnUnit(sideKey, card, x, y, isSpawnChild){
       projectile: stat.projectile || null,
       building: !!stat.building,
       noShadow: !!stat.noShadow,
+      cardKey: stat.key || null,
       lifetime: stat.lifetime || 0,
       deathSpawn: stat.deathSpawn || null,
       deathCount: stat.deathCount || 0,
@@ -692,7 +706,7 @@ function playerDeploy(cardKey, x, y){
   battle.player.elixir -= card.cost;
   if (card.spell) castSpell('player', cardKey, x, y);
   else spawnUnit('player', card, x, y);
-  SFX.deploy();
+  SFX.card(cardKey);
   return true;
 }
 function enemyDeploy(cardKey, x, y){
@@ -702,7 +716,7 @@ function enemyDeploy(cardKey, x, y){
   battle.enemy.elixir -= card.cost;
   if (card.spell) castSpell('enemy', cardKey, x, y);
   else spawnUnit('enemy', card, x, y);
-  SFX.deploy();
+  SFX.card(cardKey);
   return true;
 }
 
@@ -714,26 +728,29 @@ function castSpell(side, cardKey, x, y){
       speed: 320, dmg: card.dmg, radius: card.radius, towerFactor: card.towerFactor,
       animT: 0, done:false,
     });
-    SFX.spell();
+    SFX.play('spell_fireball', 0.8);
   } else if (cardKey === 'poison'){
     battle.effects.push({ type:'poison', side, x, y, r: card.radius, dps: card.dps, towerFactor: card.towerFactor, t:0, dur: card.duration, tickT:0 });
-    SFX.spell();
+    SFX.play('spell_poison', 0.8);
   } else if (cardKey === 'arrows'){
-    // volley: 3 arrows rain in from the caster's side, landing scattered in the damage area
+    // volley: 5 arrows at a time stream out of the caster's king tower, landing scattered in the damage area
     const volley = { hit:false };                       // full damage applies once, on the first landing
-    for (let i = 0; i < 3; i++){
+    const king = battle.towers.find(t => t.side === side && t.kind === 'king' && !t.dead)
+              || battle.towers.find(t => t.side === side && t.kind === 'king');
+    const sx = king ? king.x : (side === 'player' ? 200 : 200);
+    const sy = king ? king.y : (side === 'player' ? 640 : 40);
+    for (let i = 0; i < 5; i++){
       const ang = Math.random()*Math.PI*2, rr = Math.random()*card.radius*0.55;
       const tx = x + Math.cos(ang)*rr, ty = y + Math.sin(ang)*rr*0.8;
-      const fromMySide = side === 'player' ? 1 : -1;    // player arrows fly up from the bottom, enemy from the top
       battle.projectiles.push({
         type:'spellArrow', side, volley,
-        x: tx + 110*fromMySide + Math.random()*40, y: ty + 150*fromMySide + Math.random()*40,
-        tx, ty, speed: 400,
+        x: sx + (Math.random()*24-12), y: sy + (Math.random()*24-12),
+        tx, ty, speed: 430,
         dmg: card.dmg, radius: card.radius, towerFactor: card.towerFactor,
-        animT: 0, delay: i*0.14, done:false,
+        animT: 0, delay: i*0.1, done:false,
       });
     }
-    SFX.spell();
+    SFX.play('spell_arrows', 0.8);
   }
 }
 
@@ -764,36 +781,40 @@ function kingTargetable(u, king){
 }
 function acquireTarget(u){
   const foes = enemiesOf(u.side);
-  let best = null, bestD = 1e9;
   const ranged = u.range > 30;
+  // nearest valid enemy troop (any distance) — troops beat buildings in real CR,
+  // but the closest target overall wins so units never trek across the arena
+  let nearTroop = null, troopD = 1e9;
   if (!u.buildingsOnly){
     for (const f of foes){
       if (f.building) continue;
       if (f.flying && u.targets === 'ground') continue;
       if (ranged && riverBlocked(u, f)) continue;
       const d = dist(u,f) - f.radius;
-      if (d < bestD && d < 95){ best = f; bestD = d; }
+      if (d < troopD){ nearTroop = f; troopD = d; }
     }
   }
-  if (!best){
-    bestD = 1e9;
+  // nearest valid enemy tower/building
+  let nearBld = null, bldD = 1e9;
+  for (const b of buildingsOf(u.side === 'player' ? 'enemy' : 'player')){
+    if (b.kind === 'king' && !kingTargetable(u, b)) continue;
+    if (ranged && riverBlocked(u, b)) continue;
+    const d = dist(u,b);
+    if (d < bldD){ nearBld = b; bldD = d; }
+  }
+  if (!nearBld){
+    // everything was river-blocked — walk toward the nearest tower anyway;
+    // bridge pathing will carry the unit across
     for (const b of buildingsOf(u.side === 'player' ? 'enemy' : 'player')){
       if (b.kind === 'king' && !kingTargetable(u, b)) continue;
-      if (ranged && riverBlocked(u, b)) continue;
       const d = dist(u,b);
-      if (d < bestD){ best = b; bestD = d; }
-    }
-    if (!best){
-      // everything was river-blocked — walk toward the nearest tower anyway;
-      // bridge pathing will carry the unit across
-      for (const b of buildingsOf(u.side === 'player' ? 'enemy' : 'player')){
-        if (b.kind === 'king' && !kingTargetable(u, b)) continue;
-        const d = dist(u,b);
-        if (d < bestD){ best = b; bestD = d; }
-      }
+      if (d < bldD){ nearBld = b; bldD = d; }
     }
   }
-  u.target = best;
+  // pick whichever is genuinely closer (troop distances get a small bias to
+  // keep melee units from peeling off a tower they are actively hitting)
+  if (nearTroop && (!nearBld || troopD <= bldD + 6)) u.target = nearTroop;
+  else u.target = nearBld || nearTroop;
 }
 
 function moveUpdate(u, dt){
@@ -903,6 +924,7 @@ function attackUpdate(u, dt){
         u.hitDone = true;
         const victim = u.pendingHit.target;
         if (victim && !victim.dead && victim.hp > 0){
+          SFX.hit(u.cardKey);                       // attack sound lands with the swing
           if (u.projectile){
             battle.projectiles.push({
               type:'unit', x:u.x, y:u.y - 8, target:victim, side:u.side,
@@ -976,6 +998,7 @@ function projUpdate(p, dt){
       p.x = p.tx; p.y = p.ty; p.done = true;
       if (!p.volley.hit){                               // first arrow down: damage + 10 arrows stuck in the ground
         p.volley.hit = true;
+        SFX.play('spell_arrows_hit', 0.75);
         areaDamage(p.side, p.tx, p.ty, p.radius, p.dmg, p.towerFactor);
         for (let i = 0; i < 10; i++){
           const a2 = Math.random()*Math.PI*2, r2 = Math.random()*p.radius*0.9;
@@ -997,6 +1020,7 @@ function projUpdate(p, dt){
     p.x = tx; p.y = ty; p.done = true;
     if (p.type === 'spellFireball'){
       battle.effects.push({ type:'explosion', x:p.x, y:p.y, t:0, dur: FRAMES.SpellFireball.attack.length/14 });
+      SFX.play('spell_fireball_hit', 0.8);
       areaDamage(p.side, p.x, p.y, p.radius, p.dmg, p.towerFactor);
     } else {
       if (p.splash) areaDamage(p.side, p.x, p.y, p.splash, p.dmg, 1);
@@ -1145,6 +1169,22 @@ function updateBattle(dt){
   const b = battle;
   if (b.over) return;
   if (b.startBannerT > 0){ b.startBannerT -= dt; }
+
+  // pending placement (held when at most 1 elixir short) auto-places once elixir is enough
+  if (b.pendingPlace){
+    const p = b.pendingPlace;
+    if (b.selected < 0){ b.pendingPlace = null; }     // user cancelled meanwhile
+    else if (b.player.elixir >= CARDS[p.key].cost){
+      const idx = b.player.hand.indexOf(p.key);
+      if (idx >= 0 && playerDeploy(p.key, p.x, p.y)){
+        cycleCard(b.player, idx);
+        b.selected = -1; b.pointerPos = null; dragInfo = null; b.pendingPlace = null;
+        renderHand();
+      } else {
+        b.pendingPlace = null;
+      }
+    }
+  }
 
   // timer
   b.time -= dt;
@@ -1425,9 +1465,9 @@ function draw(){
         ctx.drawImage(img, u.x-dw/2, u.y-dh/2, dw, dh);
       }
       if (u.spawnT > 0 && IMG.clock){
-        // deploy timer: clock in front of the troop, shrinking away as deploy ends
-        const cs = (u.spawnT < 0.35 ? u.spawnT/0.35 : 1) * 30;
-        ctx.drawImage(IMG.clock, u.x-cs/2, u.y-cs/2-8, cs, cs);
+        // deploy timer: small clock floating above the troop, shrinking away as deploy ends
+        const cs = (u.spawnT < 0.35 ? u.spawnT/0.35 : 1) * 20;
+        ctx.drawImage(IMG.clock, u.x-cs/2, u.y-cs/2-26, cs, cs);
       }
     }
     if (u.hp < u.maxHp) drawBar(u.x, u.y - dh/2 - 8, Math.max(20, dw*0.55), u.hp/u.maxHp, u.side);
@@ -1546,11 +1586,16 @@ function draw(){
     if (inGrid){
       const pos = snapTile(b.pointerPos);
       const ok = deployValid(selKey, pos.x, pos.y, 'player') && b.player.elixir >= CARDS[selKey].cost;
+      // faint gray tile with a lighter gray outline (red-tinted when blocked)
       if (!CARDS[selKey].spell){
-        // faint tile shine (0-15% opacity) + deploy ghost: first walk sprite at 50%
-        ctx.strokeStyle = ok ? 'rgba(255,255,255,0.15)' : 'rgba(255,125,125,0.20)';
+        ctx.fillStyle = ok ? 'rgba(120,120,120,0.22)' : 'rgba(190,110,110,0.25)';
+        ctx.fillRect(pos.x-TILE/2, pos.y-TILE/2, TILE, TILE);
+        ctx.strokeStyle = ok ? 'rgba(210,210,210,0.55)' : 'rgba(255,125,125,0.45)';
         ctx.lineWidth = 2;
         ctx.strokeRect(pos.x-TILE/2, pos.y-TILE/2, TILE, TILE);
+      }
+      // deploy ghost: first walk sprite at 50% (troops) or target circle (spells)
+      if (!CARDS[selKey].spell){
         const fr = FRAMES[CARDS[selKey].sprite];
         // ghost faces the way the troop will march (player marches up-screen);
         // variant sprites use their up set, flat sprites fall back to their move frames
@@ -1565,29 +1610,28 @@ function draw(){
           ctx.drawImage(ghost, pos.x-gw/2, pos.y-gh/2, gw, gh);
           ctx.globalAlpha = 1;
         }
-        // troop name above the ghost
-        ctx.font = 'bold 12px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-        ctx.strokeText(CARDS[selKey].label, pos.x, pos.y - 30);
-        ctx.fillStyle = ok ? '#ffffff' : '#ff9c9c';
-        ctx.fillText(CARDS[selKey].label, pos.x, pos.y - 30);
-        // elixir readout "have/cost" in purple with the drop icon beside it
-        const txt = `${Math.floor(b.player.elixir)}/${CARDS[selKey].cost}`;
-        ctx.font = 'bold 13px system-ui, sans-serif';
-        const tw = ctx.measureText(txt).width;
-        const iconS = 14, gap = 4, bx = pos.x + tw/2 + gap + iconS/2 - 6;
-        ctx.strokeText(txt, pos.x - 6, pos.y - 16);
-        ctx.fillStyle = '#c95cf0';                       // purple elixir text
-        ctx.fillText(txt, pos.x - 6, pos.y - 16);
-        if (IMG.elixirIcon) ctx.drawImage(IMG.elixirIcon, bx - iconS/2, pos.y - 16 - iconS + 2, iconS, iconS);
       } else {
-        // spells keep the target circle
         ctx.beginPath(); ctx.arc(pos.x, pos.y, CARDS[selKey].radius || 14, 0, Math.PI*2);
         ctx.fillStyle = ok ? 'rgba(255,255,255,0.10)' : 'rgba(230,70,70,0.20)';
         ctx.fill(); ctx.lineWidth = 2;
         ctx.strokeStyle = ok ? 'rgba(255,255,255,0.15)' : 'rgba(255,125,125,0.30)'; ctx.stroke();
       }
+      // troop/spell name above the ghost
+      ctx.font = 'bold 12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+      ctx.strokeText(CARDS[selKey].label, pos.x, pos.y - 30);
+      ctx.fillStyle = ok ? '#ffffff' : '#ff9c9c';
+      ctx.fillText(CARDS[selKey].label, pos.x, pos.y - 30);
+      // elixir readout "have/cost" in purple with the drop icon beside it
+      const txt = `${Math.floor(b.player.elixir)}/${CARDS[selKey].cost}`;
+      ctx.font = 'bold 13px system-ui, sans-serif';
+      const tw = ctx.measureText(txt).width;
+      const iconS = 14, gap = 4, bx = pos.x + tw/2 + gap + iconS/2 - 6;
+      ctx.strokeText(txt, pos.x - 6, pos.y - 16);
+      ctx.fillStyle = '#c95cf0';                       // purple elixir text
+      ctx.fillText(txt, pos.x - 6, pos.y - 16);
+      if (IMG.elixirIcon) ctx.drawImage(IMG.elixirIcon, bx - iconS/2, pos.y - 16 - iconS + 2, iconS, iconS);
     }
   }
 
@@ -1676,11 +1720,24 @@ function tryDeployAt(pos){
   const p = snapTile(pos);
   if (playerDeploy(k, p.x, p.y)){
     cycleCard(b.player, b.selected);
-    b.selected = -1; b.pointerPos = null; dragInfo = null;
+    b.selected = -1; b.pointerPos = null; dragInfo = null; b.pendingPlace = null;
     renderHand();
     return true;
   }
-  toast(deployValid(k,p.x,p.y,'player') ? 'Not enough elixir!' : "You can't deploy there!");
+  if (deployValid(k, p.x, p.y, 'player')){
+    const short = CARDS[k].cost - b.player.elixir;
+    if (short <= 1){
+      // at most 1 elixir short: hold the placement here until elixir fills up, then auto-place
+      b.pendingPlace = { key: k, x: p.x, y: p.y };
+      b.pointerPos = p;
+      return true;
+    }
+    toast('Not enough elixir!');
+  } else {
+    toast("You can't deploy there!");
+  }
+  b.selected = -1; b.pointerPos = null; dragInfo = null; b.pendingPlace = null;
+  renderHand();
   return false;
 }
 
@@ -1692,29 +1749,27 @@ ui.handRow.addEventListener('pointerdown', ev => {
   const k = battle.player.hand[idx];
   if (battle.selected === idx){
     // tap the selected card again to deselect — springs back down
-    battle.selected = -1; battle.pointerPos = null; dragInfo = null;
+    battle.selected = -1; battle.pointerPos = null; dragInfo = null; battle.pendingPlace = null;
     el.classList.add('settle');
     setTimeout(()=>el.classList.remove('settle'), 260);
     updateHandAffordability();
     return;
   }
-  if (battle.player.elixir < CARDS[k].cost){
-    el.classList.add('shake'); setTimeout(()=>el.classList.remove('shake'), 320);
-    toast('Not enough elixir!');
-    return;
-  }
+  // selecting is always allowed, even without elixir — placement gets
+  // rejected on release (or held as pending when at most 1 short)
   battle.selected = idx;
   dragInfo = { idx, x0: ev.clientX, y0: ev.clientY, moved: false };
-  battle.pointerPos = null;
+  battle.pointerPos = null; battle.pendingPlace = null;
   updateHandAffordability();
 });
 window.addEventListener('pointermove', ev => {
   if (!battle || battle.over) return;
   if (battle.selected < 0) return;
   if (dragInfo && (Math.abs(ev.clientX-dragInfo.x0) > 10 || Math.abs(ev.clientY-dragInfo.y0) > 10)) dragInfo.moved = true;
-  // ghost preview only follows the cursor when it is truly over the grid.
-  // ev.target check is cheap — elementFromPoint forced a layout flush on every move (placement lag)
-  battle.pointerPos = (ev.target === canvas) ? canvasPos(ev) : null;
+  // ghost preview only shows while actively pressing on the grid (or when a
+  // placement is pending on elixir) — plain hover-dragging shows nothing
+  if (ev.buttons > 0 && ev.target === canvas) battle.pointerPos = canvasPos(ev);
+  else if (!battle.pendingPlace) battle.pointerPos = null;
 });
 window.addEventListener('pointerup', ev => {
   if (!battle || battle.over) return;
@@ -1737,7 +1792,7 @@ canvas.addEventListener('pointerdown', ev => {
   ev.preventDefault();
   battle.pointerPos = canvasPos(ev);
 });
-window.addEventListener('keydown', ev => { if (ev.key === 'Escape' && battle){ battle.selected = -1; battle.pointerPos = null; dragInfo = null; updateHandAffordability(); } });
+window.addEventListener('keydown', ev => { if (ev.key === 'Escape' && battle){ battle.selected = -1; battle.pointerPos = null; dragInfo = null; battle.pendingPlace = null; updateHandAffordability(); } });
 
 /* ---------------- main loop ---------------- */
 let lastT = 0, rafId = 0;
